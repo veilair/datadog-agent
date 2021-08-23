@@ -601,7 +601,11 @@ def generate_cgo_types(ctx, windows=is_windows):
         def_files = ["./pkg/network/driver/types.go"]
     else:
         platform = "linux"
-        def_files = ["./pkg/network/ebpf/conntrack_types.go", "./pkg/network/ebpf/tuple_types.go"]
+        def_files = [
+            "./pkg/network/ebpf/conntrack_types.go",
+            "./pkg/network/ebpf/tuple_types.go",
+            "./pkg/network/ebpf/offsetguess_types.go",
+        ]
 
     for f in def_files:
         fdir, file = os.path.split(f)
