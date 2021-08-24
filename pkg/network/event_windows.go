@@ -6,6 +6,7 @@ import (
 	"net"
 	"syscall"
 
+	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
