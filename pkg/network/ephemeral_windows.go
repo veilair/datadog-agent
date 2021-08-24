@@ -91,6 +91,7 @@ func parseNetshOutput(output string) (low, hi uint16, err error) {
 	return low, hi, nil
 }
 
+// IsPortInEphemeralRange returns whether the port is ephemeral based on the OS-specific configuration.
 func IsPortInEphemeralRange(f ConnectionFamily, t ConnectionType, p uint16) EphemeralPortType {
 	rangeGetOnce.Do(getEphemeralRanges)
 

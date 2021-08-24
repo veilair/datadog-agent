@@ -16,6 +16,7 @@ var (
 	ephemeralIntPair     *sysctl.IntPair
 )
 
+// IsPortInEphemeralRange returns whether the port is ephemeral based on the OS-specific configuration.
 func IsPortInEphemeralRange(p uint16) EphemeralPortType {
 	initEphemeralIntPair.Do(func() {
 		procfsPath := "/proc"

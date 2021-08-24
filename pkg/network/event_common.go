@@ -220,6 +220,7 @@ func (c ConnectionStats) String() string {
 	return ConnectionSummary(&c, nil)
 }
 
+// IsExpired returns whether the connection is expired according to the provided time and timeout.
 func (c ConnectionStats) IsExpired(now uint64, timeout uint64) bool {
 	return c.LastUpdateEpoch+timeout <= now
 }

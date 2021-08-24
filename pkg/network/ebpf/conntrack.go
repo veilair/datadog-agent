@@ -8,6 +8,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
+// Family returns whether a tuple is IPv4 or IPv6
 func (t ConntrackTuple) Family() ConnFamily {
 	if t.Metadata&uint32(IPv6) != 0 {
 		return IPv6
@@ -15,6 +16,7 @@ func (t ConntrackTuple) Family() ConnFamily {
 	return IPv4
 }
 
+// Type returns whether a tuple is TCP or UDP
 func (t ConntrackTuple) Type() ConnType {
 	if t.Metadata&uint32(TCP) != 0 {
 		return TCP
@@ -22,6 +24,7 @@ func (t ConntrackTuple) Type() ConnType {
 	return UDP
 }
 
+// SourceAddress returns the source address
 func (t ConntrackTuple) SourceAddress() util.Address {
 	if t.Metadata&uint32(IPv6) != 0 {
 		return util.V6Address(t.Saddr_l, t.Saddr_h)
@@ -30,10 +33,12 @@ func (t ConntrackTuple) SourceAddress() util.Address {
 	return util.V4Address(uint32(t.Saddr_l))
 }
 
+// SourceEndpoint returns the source address and source port joined
 func (t ConntrackTuple) SourceEndpoint() string {
 	return net.JoinHostPort(t.SourceAddress().String(), strconv.Itoa(int(t.Sport)))
 }
 
+// DestAddress returns the destination address
 func (t ConntrackTuple) DestAddress() util.Address {
 	if t.Metadata&uint32(IPv6) != 0 {
 		return util.V6Address(t.Daddr_l, t.Daddr_h)
@@ -42,6 +47,7 @@ func (t ConntrackTuple) DestAddress() util.Address {
 	return util.V4Address(uint32(t.Daddr_l))
 }
 
+// DestEndpoint returns the destination address and source port joined
 func (t ConntrackTuple) DestEndpoint() string {
 	return net.JoinHostPort(t.DestAddress().String(), strconv.Itoa(int(t.Dport)))
 }
