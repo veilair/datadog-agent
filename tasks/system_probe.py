@@ -605,6 +605,7 @@ def generate_cgo_types(ctx, windows=is_windows):
             "./pkg/network/ebpf/conntrack_types.go",
             "./pkg/network/ebpf/tuple_types.go",
             "./pkg/network/ebpf/offsetguess_types.go",
+            "./pkg/network/ebpf/kprobe_types.go",
         ]
 
     for f in def_files:
