@@ -82,7 +82,7 @@ func NewTracer(config *config.Config, constants []manager.ConstantEditor) (Conne
 	var err error
 	if config.EnableRuntimeCompiler {
 		runtime.RuntimeCompilationEnabled = true
-		buf, err := getRuntimeCompiledTracer(config)
+		buf, err = getRuntimeCompiledTracer(config)
 		if err != nil {
 			if !config.AllowPrecompiledFallback {
 				return nil, fmt.Errorf("error compiling network tracer: %s", err)

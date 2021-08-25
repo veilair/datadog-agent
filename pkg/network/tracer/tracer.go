@@ -104,16 +104,21 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	defer offsetBuf.Close()
 
 	// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
+	//needsOffsets := !config.EnableRuntimeCompiler || config.AllowPrecompiledFallback
+	// should be the above, but HTTP is lacking a runtime version right now, so always do offset guessing
+	needsOffsets := true
 	var constantEditors []manager.ConstantEditor
-	for i := 0; i < 5; i++ {
-		constantEditors, err = runOffsetGuessing(config, offsetBuf)
-		if err == nil {
-			break
+	if needsOffsets {
+		for i := 0; i < 5; i++ {
+			constantEditors, err = runOffsetGuessing(config, offsetBuf)
+			if err == nil {
+				break
+			}
+			time.Sleep(1 * time.Second)
 		}
-		time.Sleep(1 * time.Second)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("error guessing offsets: %s", err)
+		if err != nil {
+			return nil, fmt.Errorf("error guessing offsets: %s", err)
+		}
 	}
 
 	ebpfTracer, err := kprobe.NewTracer(config, constantEditors)
