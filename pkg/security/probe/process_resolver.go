@@ -953,6 +953,16 @@ func (p *ProcessResolver) SetState(state int64) {
 	atomic.StoreInt64(&p.state, state)
 }
 
+// Walk iterates through the entire tree and call the provided callback on each entry
+func (p *ProcessResolver) Walk(callback func(entry *model.ProcessCacheEntry)) {
+	p.RLock()
+	defer p.RUnlock()
+
+	for _, entry := range p.entryCache {
+		callback(entry)
+	}
+}
+
 // NewProcessResolver returns a new process resolver
 func NewProcessResolver(probe *Probe, resolvers *Resolvers, client *statsd.Client, opts ProcessResolverOpts) (*ProcessResolver, error) {
 	argsEnvsCache, err := simplelru.NewLRU(512, nil)

@@ -88,6 +88,11 @@ type Config struct {
 	SelfTestEnabled bool
 	// EnableRemoteConfig defines if configuration should be fetched from the backend
 	EnableRemoteConfig bool
+	// ActivityDumpEnabled defines if the activity dump manager should be enabled
+	ActivityDumpEnabled bool
+	// ActivityDumpCleanupPeriod defines the period at which the activity dump manager should perform its cleanup
+	// operation.
+	ActivityDumpCleanupPeriod time.Duration
 }
 
 // IsEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -128,6 +133,8 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		LogPatterns:                        aconfig.Datadog.GetStringSlice("runtime_security_config.log_patterns"),
 		SelfTestEnabled:                    aconfig.Datadog.GetBool("runtime_security_config.self_test.enabled"),
 		EnableRemoteConfig:                 aconfig.Datadog.GetBool("runtime_security_config.enable_remote_configuration"),
+		ActivityDumpEnabled:                aconfig.Datadog.GetBool("runtime_security_config.activity_dump_manager.enabled"),
+		ActivityDumpCleanupPeriod:          time.Duration(aconfig.Datadog.GetInt("runtime_security_config.activity_dump_manager.cleanup_period")) * time.Second,
 	}
 
 	// if runtime is enabled then we force fim

@@ -524,4 +524,28 @@ static __attribute__((always_inline)) void add_event_to_mask(u64 *mask, enum eve
     *mask |= 1 << (event - EVENT_FIRST_DISCARDER);
 }
 
+struct bpf_map_def SEC("maps/traced_pids") traced_pids = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u64),
+    .max_entries = 4096,
+    .pinning = 0,
+    .namespace = "",
+};
+
+struct traced_inode_t {
+    u32 tgid;
+    u32 mount_id;
+    u64 inode;
+};
+
+struct bpf_map_def SEC("maps/traced_inodes") traced_inodes = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(struct traced_inode_t),
+    .value_size = sizeof(u64),
+    .max_entries = 8192,
+    .pinning = 0,
+    .namespace = "",
+};
+
 #endif
