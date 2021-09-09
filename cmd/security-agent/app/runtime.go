@@ -82,6 +82,11 @@ var (
 		RunE:  dumpActivity,
 	}
 
+	activityDumpTags    []string
+	activityDumpComm    string
+	activityDumpTimeout int
+	withGraph           bool
+
 	listActivityDumpsCmd = &cobra.Command{
 		Use:   "activity",
 		Short: "list all active dumps",
@@ -93,10 +98,6 @@ var (
 		Short: "stops the first activity dump that matches the provided set of tags",
 		RunE:  stopActivityDump,
 	}
-
-	activityDumpTags    []string
-	activityDumpTimeout int
-	withGraph           bool
 
 	selfTestCmd = &cobra.Command{
 		Use:   "self-test",
@@ -110,7 +111,13 @@ func init() {
 		&activityDumpTags,
 		"tags",
 		[]string{},
-		"tags are used to filter the activity dump in order to select a specific workload. Tags should be provided in the [tag_name:tag_value] format.",
+		"tags are used to filter the activity dump in order to select a specific workload. Tags should be provided in the \"tag_name:tag_value\" format.",
+	)
+	dumpActivityCmd.Flags().StringVar(
+		&activityDumpComm,
+		"comm",
+		"",
+		"a process command can be used to filter the activity dump from a specific process.",
 	)
 	dumpActivityCmd.Flags().IntVar(
 		&activityDumpTimeout,
@@ -129,6 +136,12 @@ func init() {
 		"tags",
 		[]string{},
 		"tags is used to select an activity dump. Tags should be provided in the [tag_name:tag_value] format.",
+	)
+	stopActivityDumpCmd.Flags().StringVar(
+		&activityDumpComm,
+		"comm",
+		"",
+		"a process command can be used to filter the activity dump from a specific process.",
 	)
 
 	dumpCmd.AddCommand(dumpProcessCacheCmd)
@@ -182,7 +195,7 @@ func dumpActivity(cmd *cobra.Command, args []string) error {
 	defer client.Close()
 
 	var filename, graph string
-	filename, graph, err = client.DumpActivity(activityDumpTags, int32(activityDumpTimeout), withGraph)
+	filename, graph, err = client.DumpActivity(activityDumpTags, activityDumpComm, int32(activityDumpTimeout), withGraph)
 	if err != nil {
 		return errors.Wrap(err, "unable to an request activity dump for %s")
 	}
@@ -238,7 +251,7 @@ func stopActivityDump(cmd *cobra.Command, args []string) error {
 	defer client.Close()
 
 	var msg string
-	msg, err = client.StopActivityDump(activityDumpTags)
+	msg, err = client.StopActivityDump(activityDumpTags, activityDumpComm)
 	if err != nil {
 		return errors.Wrap(err, "unable to stop the request activity dump")
 	}
