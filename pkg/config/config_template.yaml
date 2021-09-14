@@ -168,7 +168,7 @@ api_key:
 #   - "0.95"
 
 ## @param histogram_copy_to_distribution - boolean - optional - default: false
-## env DD_HISTOGRAM_COPY_TO_DISTRIBUTION - boolean - optional - default: false
+## @env DD_HISTOGRAM_COPY_TO_DISTRIBUTION - boolean - optional - default: false
 ## Copy histogram values to distributions for true global distributions (in beta)
 ## Note: This increases the number of custom metrics created.
 #
@@ -488,16 +488,19 @@ api_key:
 # enable_metadata_collection: true
 
 ## @param enable_gohai - boolean - optional - default: true
+## @env DD_ENABLE_GOHAI - boolean - optional - default: true
 ## Enable the gohai collection of systems data.
 #
 # enable_gohai: true
 
 ## @param server_timeout - integer - optional - default: 30
+## @env DD_SERVER_TIMEOUT - integer - optional - default: 30
 ## IPC api server timeout in seconds.
 #
 # server_timeout: 30
 
 ## @param procfs_path - string - optional
+## @env DD_PROCFS_PATH - string - optional
 ## Some environments may have the procfs file system mounted in a miscellaneous
 ## location. The procfs_path configuration parameter provides a mechanism to
 ## override the standard default location: '/proc' - this setting trickles down to
@@ -506,21 +509,25 @@ api_key:
 # procfs_path: <PROCFS_PATH>
 {{ if .Python }}
 ## @param disable_py3_validation - boolean - optional - default: false
+## @env DD_DISABLE_PY3_VALIDATION - boolean - optional - default: false
 ## Disable Python3 validation of python checks.
 #
 # disable_py3_validation: false
 #
 ## @param python3_linter_timeout - integer - optional - default: 120
+## @env DD_PYTHON3_LINTER_TIMEOUT - integer - optional - default: 120
 ## Timeout in seconds for validation of compatibility with python 3 when running python 2.
 #
 # python3_linter_timeout: 120
 
 ## @param memtrack_enabled - boolean - optional - default: true
+## @env DD_MEMTRACK_ENABLED - boolean - optional - default: true
 ## Enables tracking of memory allocations made from the python runtime loader.
 #
 # memtrack_enabled: true
 
 ## @param tracemalloc_debug - boolean - optional - default: false
+## @env DD_TRACEMALLOC_DEBUG - boolean - optional - default: false
 ## Enables debugging with tracemalloc for python checks.
 ## Please note that this option is only available when python_version is set to "3".
 ## Additionally when this option becomes effective the number of check runners is
@@ -529,24 +536,28 @@ api_key:
 # tracemalloc_debug: false
 
 ## @param tracemalloc_include - string - optional
+## @env DD_TRACEMALLOC_INCLUDE - string - optional
 ## Comma-separated list of Python checks to enable tracemalloc for when `tracemalloc_debug` is true.
 ## By default, all Python checks are enabled.
 #
 # tracemalloc_include: <TRACEMALLOC_EXCLUDE>
 
 ## @param tracemalloc_exclude - string - optional
+## @env DD_TRACEMALLOC_EXCLUDE - string - optional
 ## Comma-separated list of Python checks to disable tracemalloc for when `tracemalloc_debug` is true.
 ## By default, all Python checks are enabled. This setting takes precedence over `tracemalloc_include`.
 #
 # tracemalloc_exclude: <TRACEMALLOC_INCLUDE>
 
 ## @param windows_use_pythonpath - boolean - optional
+## @env DD_WINDOWS_USE_PYTHONPATH - boolean - optional
 ## Whether to honour the value of the PYTHONPATH env var when set on Windows.
 ## Disabled by default, so we only load Python libraries bundled with the Agent.
 #
 # windows_use_pythonpath: false
 {{ end }}
 ## @param secret_backend_command - string - optional
+## @env DD_SECRET_BACKEND_COMMAND - string - optional
 ## `secret_backend_command` is the path to the script to execute to fetch secrets.
 ## The executable must have specific rights that differ on Windows and Linux.
 ##
@@ -555,6 +566,7 @@ api_key:
 # secret_backend_command: <COMMAND_PATH>
 
 ## @param secret_backend_arguments - list of strings - optional
+## @env DD_SECRET_BACKEND_ARGUMENTS - space separated list of strings - optional
 ## If secret_backend_command is set, specify here a list of arguments to give to the command at each run.
 #
 # secret_backend_arguments:
@@ -562,11 +574,13 @@ api_key:
 #   - <ARGUMENT_2>
 
 ## @param secret_backend_output_max_size - integer - optional - default: 1048576
+## @env DD_SECRET_BACKEND_OUTPUT_MAX_SIZE - integer - optional - default: 1048576
 ## The size in bytes of the buffer used to store the command answer (apply to both stdout and stderr)
 #
 # secret_backend_output_max_size: 1048576
 
 ## @param secret_backend_timeout - integer - optional - default: 30
+## @env DD_SECRET_BACKEND_TIMEOUT - integer - optional - default: 30
 ## The timeout to execute the command in second
 #
 # secret_backend_timeout: 30
@@ -771,6 +785,7 @@ api_key:
 ##################################
 
 ## @param logs_enabled - boolean - optional - default: false
+## @env DD_LOGS_ENABLED - boolean - optional - default: false
 ## Enable Datadog Agent log collection by setting logs_enabled to true.
 #
 # logs_enabled: false
@@ -783,17 +798,20 @@ api_key:
 # logs_config:
 
   ## @param container_collect_all - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL - boolean - optional - default: false
   ## Enable container log collection for all the containers (see ac_exclude to filter out containers)
   #
   # container_collect_all: false
 
   ## @param logs_dd_url - string - optional
+  ## @env DD_LOGS_CONFIG_DD_URL - string - optional
   ## Define the endpoint and port to hit when using a proxy for logs. The logs are forwarded in TCP
   ## therefore the proxy must be able to handle TCP connections.
   #
   # logs_dd_url: <ENDPOINT>:<PORT>
 
   ## @param logs_no_ssl - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_LOGS_NO_SSL - optional - default: false
   ## Disable the SSL encryption. This parameter should only be used when logs are
   ## forwarded locally to a proxy. It is highly recommended to then handle the SSL encryption
   ## on the proxy side.
@@ -801,6 +819,7 @@ api_key:
   # logs_no_ssl: false
 
   ## @param processing_rules - list of custom objects - optional
+  ## @env DD_LOGS_CONFIG_PROCESSING_RULES - list of custom objects - optional
   ## Global processing rules that are applied to all logs. The available rules are
   ## "exclude_at_match", "include_at_match" and "mask_sequences". More information in Datadog documentation:
   ## https://docs.datadoghq.com/agent/logs/advanced_log_collection/#global-processing-rules
@@ -811,6 +830,7 @@ api_key:
   #     pattern: <RULE_PATTERN>
 
   ## @param use_http - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_USE_HTTP - boolean - optional - default: false
   ## By default, logs are sent through TCP, use this parameter
   ## to send logs in HTTPS batches to port 443
   #
@@ -823,18 +843,21 @@ api_key:
   # use_tcp: true
 
   ## @param use_compression - boolean - optional - default: false
+  ## @env DD_LOGS_CONFIG_USE_COMPRESSION - boolean - optional - default: false
   ## This parameter is available when sending logs with HTTPS. If enabled, the Agent
   ## compresses logs before sending them.
   #
   # use_compression: true
 
   ## @param compression_level - integer - optional - default: 6
+  ## @env DD_LOGS_CONFIG_COMPRESSION_LEVEL - boolean - optional - default: false
   ## The compression_level parameter accepts values from 0 (no compression)
   ## to 9 (maximum compression but higher resource usage).
   #
   # compression_level: 6
 
   ## @param batch_wait - integer - optional - default: 5
+  ## @env DD_LOGS_CONFIG_BATCH_WAIT - integer - optional - default: 5
   ## The maximum time the Datadog Agent waits to fill each batch of logs before sending.
   #
   # batch_wait: 5
@@ -1939,6 +1962,14 @@ api_key:
 # kubernetes_namespace_labels_as_tags:
 #   <NAMESPACE_LABEL>: <TAG_KEY>
 #   <HIGH_CARDINALITY_NAMESPACE_LABEL_NAME>: +<TAG_KEY>
+
+## @param container_env_as_tags - map - optional
+## @env DD_CONTAINER_ENV_AS_TAGS - map - optional
+## The Agent can extract environment variable values and set them as metric tags values associated to a <TAG_KEY>.
+## Requires the container runtime socket to be reachable. (Supported container runtimes: Containerd, Docker)
+#
+# container_env_as_tags:
+#   <ENV>: <TAG_KEY>
 
 {{ end -}}
 {{- if .ECS }}
