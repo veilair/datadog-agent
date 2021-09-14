@@ -126,6 +126,7 @@ func (l *Collector) runCheck(c checks.Check, results *api.WeightedQueue) {
 		extraHeaders.Set(headers.HostHeader, l.cfg.HostName)
 		extraHeaders.Set(headers.ProcessVersionHeader, Version)
 		extraHeaders.Set(headers.ContainerCountHeader, strconv.Itoa(getContainerCount(m)))
+		extraHeaders.Set("Content-Type", headers.ProtobufContentType)
 
 		if l.cfg.Orchestrator.OrchestrationCollectionEnabled {
 			if cid, err := clustername.GetClusterID(); err == nil && cid != "" {
