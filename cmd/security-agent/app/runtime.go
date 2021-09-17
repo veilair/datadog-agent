@@ -40,6 +40,15 @@ const (
 )
 
 var (
+	activityDumpTags    []string
+	activityDumpComm    string
+	activityDumpTimeout int
+	withGraph           bool
+	differentiateArgs   bool
+	activityDumpFile    string
+)
+
+var (
 	runtimeCmd = &cobra.Command{
 		Use:   "runtime",
 		Short: "Runtime Agent utility commands",
@@ -56,48 +65,53 @@ var (
 	}{}
 
 	dumpCmd = &cobra.Command{
-		Use:   "dump",
-		Short: "Dump security module command",
+		Use:   "get",
+		Short: "Query a resource from the Runtime Security module",
 	}
 
 	stopCmd = &cobra.Command{
 		Use:   "stop",
-		Short: "Stop security module command",
+		Short: "Stop a task of the Runtime Security module",
 	}
 
 	listCmd = &cobra.Command{
 		Use:   "list",
-		Short: "List security module command",
+		Short: "List a resource from the Runtime Security module",
 	}
 
-	dumpProcessCacheCmd = &cobra.Command{
+	generateCmd = &cobra.Command{
+		Use:   "generate",
+		Short: "Generate command of the Runtime Security module",
+	}
+
+	getProcessCacheCmd = &cobra.Command{
 		Use:   "process-cache",
 		Short: "process cache",
-		RunE:  dumpProcessCache,
+		RunE:  getProcessCache,
 	}
 
-	dumpActivityCmd = &cobra.Command{
-		Use:   "activity",
-		Short: "record and dump all activity matching a set of tags",
-		RunE:  dumpActivity,
+	generateActivityDumpCmd = &cobra.Command{
+		Use:   "activity-dump",
+		Short: "record and dump all activity matching a set of tags or the provided comm",
+		RunE:  generateActivityDump,
 	}
-
-	activityDumpTags    []string
-	activityDumpComm    string
-	activityDumpTimeout int
-	withGraph           bool
-	differentiateArgs   bool
 
 	listActivityDumpsCmd = &cobra.Command{
-		Use:   "activity",
+		Use:   "activity-dump",
 		Short: "list all active dumps",
 		RunE:  listActivityDumps,
 	}
 
 	stopActivityDumpCmd = &cobra.Command{
-		Use:   "activity",
+		Use:   "activity-dump",
 		Short: "stops the first activity dump that matches the provided set of tags",
 		RunE:  stopActivityDump,
+	}
+
+	generateProfileCmd = &cobra.Command{
+		Use:   "profile",
+		Short: "generate a profile from an activity dump",
+		RunE:  generateProfile,
 	}
 
 	selfTestCmd = &cobra.Command{
@@ -108,31 +122,31 @@ var (
 )
 
 func init() {
-	dumpActivityCmd.Flags().StringArrayVar(
+	generateActivityDumpCmd.Flags().StringArrayVar(
 		&activityDumpTags,
 		"tags",
 		[]string{},
 		"tags are used to filter the activity dump in order to select a specific workload. Tags should be provided in the \"tag_name:tag_value\" format.",
 	)
-	dumpActivityCmd.Flags().StringVar(
+	generateActivityDumpCmd.Flags().StringVar(
 		&activityDumpComm,
 		"comm",
 		"",
 		"a process command can be used to filter the activity dump from a specific process.",
 	)
-	dumpActivityCmd.Flags().IntVar(
+	generateActivityDumpCmd.Flags().IntVar(
 		&activityDumpTimeout,
 		"timeout",
 		10,
 		"timeout for the activity dump in minutes",
 	)
-	dumpActivityCmd.Flags().BoolVar(
+	generateActivityDumpCmd.Flags().BoolVar(
 		&withGraph,
 		"graph",
 		false,
 		"generate a graph from the generated dump",
 	)
-	dumpActivityCmd.Flags().BoolVar(
+	generateActivityDumpCmd.Flags().BoolVar(
 		&differentiateArgs,
 		"differentiate-args",
 		false,
@@ -150,9 +164,15 @@ func init() {
 		"",
 		"a process command can be used to filter the activity dump from a specific process.",
 	)
+	generateProfileCmd.Flags().StringVar(
+		&activityDumpFile,
+		"input",
+		"",
+		"path to the activity dump file from which a profile will be generated",
+	)
+	_ = generateProfileCmd.MarkFlagRequired("input")
 
-	dumpCmd.AddCommand(dumpProcessCacheCmd)
-	dumpCmd.AddCommand(dumpActivityCmd)
+	dumpCmd.AddCommand(getProcessCacheCmd)
 	runtimeCmd.AddCommand(dumpCmd)
 
 	listCmd.AddCommand(listActivityDumpsCmd)
@@ -161,25 +181,29 @@ func init() {
 	stopCmd.AddCommand(stopActivityDumpCmd)
 	runtimeCmd.AddCommand(stopCmd)
 
+	generateCmd.AddCommand(generateActivityDumpCmd)
+	generateCmd.AddCommand(generateProfileCmd)
+	runtimeCmd.AddCommand(generateCmd)
+
 	runtimeCmd.AddCommand(checkPoliciesCmd)
 	checkPoliciesCmd.Flags().StringVar(&checkPoliciesArgs.dir, "policies-dir", coreconfig.DefaultRuntimePoliciesDir, "Path to policies directory")
 
 	runtimeCmd.AddCommand(selfTestCmd)
 }
 
-func dumpProcessCache(cmd *cobra.Command, args []string) error {
+func getProcessCache(cmd *cobra.Command, args []string) error {
 	// Read configuration files received from the command line arguments '-c'
 	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
 		return err
 	}
 
-	client, err := secagent.NewRuntimeSecurityClient()
+	rsClient, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return errors.Wrap(err, "unable to create a runtime security client instance")
 	}
-	defer client.Close()
+	defer rsClient.Close()
 
-	filename, err := client.DumpProcessCache()
+	filename, err := rsClient.DumpProcessCache()
 	if err != nil {
 		return errors.Wrap(err, "unable to get a process cache dump")
 	}
@@ -189,20 +213,20 @@ func dumpProcessCache(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func dumpActivity(cmd *cobra.Command, args []string) error {
+func generateActivityDump(cmd *cobra.Command, args []string) error {
 	// Read configuration files received from the command line arguments '-c'
 	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
 		return err
 	}
 
-	client, err := secagent.NewRuntimeSecurityClient()
+	rsClient, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return errors.Wrap(err, "unable to create a runtime security client instance")
 	}
-	defer client.Close()
+	defer rsClient.Close()
 
 	var filename, graph string
-	filename, graph, err = client.DumpActivity(activityDumpTags, activityDumpComm, int32(activityDumpTimeout), withGraph, differentiateArgs)
+	filename, graph, err = rsClient.GenerateActivityDump(activityDumpTags, activityDumpComm, int32(activityDumpTimeout), withGraph, differentiateArgs)
 	if err != nil {
 		return errors.Wrap(err, "unable to an request activity dump for %s")
 	}
@@ -221,14 +245,14 @@ func listActivityDumps(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	client, err := secagent.NewRuntimeSecurityClient()
+	rsClient, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return errors.Wrap(err, "unable to create a runtime security client instance")
 	}
-	defer client.Close()
+	defer rsClient.Close()
 
 	var activeDumps []string
-	activeDumps, err = client.ListActivityDumps()
+	activeDumps, err = rsClient.ListActivityDumps()
 	if err != nil {
 		return errors.Wrap(err, "unable to request the list activity dumps")
 	}
@@ -251,14 +275,14 @@ func stopActivityDump(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	client, err := secagent.NewRuntimeSecurityClient()
+	rsClient, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return errors.Wrap(err, "unable to create a runtime security client instance")
 	}
-	defer client.Close()
+	defer rsClient.Close()
 
 	var msg string
-	msg, err = client.StopActivityDump(activityDumpTags, activityDumpComm)
+	msg, err = rsClient.StopActivityDump(activityDumpTags, activityDumpComm)
 	if err != nil {
 		return errors.Wrap(err, "unable to stop the request activity dump")
 	}
@@ -269,6 +293,28 @@ func stopActivityDump(cmd *cobra.Command, args []string) error {
 		fmt.Println(msg)
 	}
 
+	return nil
+}
+
+func generateProfile(cmd *cobra.Command, args []string) error {
+	// Read configuration files received from the command line arguments '-c'
+	if err := common.MergeConfigurationFiles("datadog", confPathArray, cmd.Flags().Lookup("cfgpath").Changed); err != nil {
+		return err
+	}
+
+	rsClient, err := secagent.NewRuntimeSecurityClient()
+	if err != nil {
+		return errors.Wrap(err, "unable to generate a profile")
+	}
+	defer rsClient.Close()
+
+	var output string
+	output, err = rsClient.GenerateProfile(activityDumpFile)
+	if err != nil {
+		return errors.Wrapf(err, "couldn't generate a profile from: %s", activityDumpFile)
+	}
+
+	fmt.Printf("Generated profile: %s\n", output)
 	return nil
 }
 
@@ -311,13 +357,13 @@ func checkPolicies(cmd *cobra.Command, args []string) error {
 }
 
 func runRuntimeSelfTest(cmd *cobra.Command, args []string) error {
-	client, err := secagent.NewRuntimeSecurityClient()
+	rsClient, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return errors.Wrap(err, "unable to create a runtime security client instance")
 	}
-	defer client.Close()
+	defer rsClient.Close()
 
-	selfTestResult, err := client.RunSelfTest()
+	selfTestResult, err := rsClient.RunSelfTest()
 	if err != nil {
 		return errors.Wrap(err, "unable to get a process self test")
 	}
