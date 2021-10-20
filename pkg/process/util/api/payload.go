@@ -32,7 +32,7 @@ func EncodePayload(m model.MessageBody) ([]byte, error) {
 	encoded, err := model.EncodeMessage(model.Message{
 		Header: model.MessageHeader{
 			Version:  model.MessageV3,
-			Encoding: model.MessageEncodingProtobuf,
+			Encoding: model.MessageEncodingZstdPB,
 			Type:     msgType,
 		}, Body: m})
 
