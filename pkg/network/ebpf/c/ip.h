@@ -29,7 +29,6 @@ static __always_inline void read_ipv4_skb(struct __sk_buff *skb, __u64 off, __u6
 }
 
 static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff *skb, skb_info_t *info) {
-    __builtin_memset(info, 0, sizeof(skb_info_t));
     info->data_off = ETH_HLEN;
 
     __u16 l3_proto = load_half(skb, offsetof(struct ethhdr, h_proto));
@@ -42,17 +41,17 @@ static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff *skb, skb_info
             return 0;
         }
         l4_proto = load_byte(skb, info->data_off + offsetof(struct iphdr, protocol));
-        info->tup.metadata |= CONN_V4;
-        read_ipv4_skb(skb, info->data_off + offsetof(struct iphdr, saddr), &info->tup.saddr_l);
-        read_ipv4_skb(skb, info->data_off + offsetof(struct iphdr, daddr), &info->tup.daddr_l);
+        info->tup->metadata |= CONN_V4;
+        read_ipv4_skb(skb, info->data_off + offsetof(struct iphdr, saddr), &info->tup->saddr_l);
+        read_ipv4_skb(skb, info->data_off + offsetof(struct iphdr, daddr), &info->tup->daddr_l);
         info->data_off += ipv4_hdr_len;
         break;
     }
     case ETH_P_IPV6:
         l4_proto = load_byte(skb, info->data_off + offsetof(struct ipv6hdr, nexthdr));
-        info->tup.metadata |= CONN_V6;
-        read_ipv6_skb(skb, info->data_off + offsetof(struct ipv6hdr, saddr), &info->tup.saddr_l, &info->tup.saddr_h);
-        read_ipv6_skb(skb, info->data_off + offsetof(struct ipv6hdr, daddr), &info->tup.daddr_l, &info->tup.daddr_h);
+        info->tup->metadata |= CONN_V6;
+        read_ipv6_skb(skb, info->data_off + offsetof(struct ipv6hdr, saddr), &info->tup->saddr_l, &info->tup->saddr_h);
+        read_ipv6_skb(skb, info->data_off + offsetof(struct ipv6hdr, daddr), &info->tup->daddr_l, &info->tup->daddr_h);
         info->data_off += sizeof(struct ipv6hdr);
         break;
     default:
@@ -61,15 +60,15 @@ static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff *skb, skb_info
 
     switch (l4_proto) {
     case IPPROTO_UDP:
-        info->tup.metadata |= CONN_TYPE_UDP;
-        info->tup.sport = load_half(skb, info->data_off + offsetof(struct udphdr, source));
-        info->tup.dport = load_half(skb, info->data_off + offsetof(struct udphdr, dest));
+        info->tup->metadata |= CONN_TYPE_UDP;
+        info->tup->sport = load_half(skb, info->data_off + offsetof(struct udphdr, source));
+        info->tup->dport = load_half(skb, info->data_off + offsetof(struct udphdr, dest));
         info->data_off += sizeof(struct udphdr);
         break;
     case IPPROTO_TCP:
-        info->tup.metadata |= CONN_TYPE_TCP;
-        info->tup.sport = load_half(skb, info->data_off + offsetof(struct tcphdr, source));
-        info->tup.dport = load_half(skb, info->data_off + offsetof(struct tcphdr, dest));
+        info->tup->metadata |= CONN_TYPE_TCP;
+        info->tup->sport = load_half(skb, info->data_off + offsetof(struct tcphdr, source));
+        info->tup->dport = load_half(skb, info->data_off + offsetof(struct tcphdr, dest));
 
         info->tcp_flags = load_byte(skb, info->data_off + TCP_FLAGS_OFFSET);
         // TODO: Improve readability and explain the bit twiddling below

@@ -41,7 +41,7 @@ static __always_inline int http_responding(http_transaction_t *http) {
     return (http != NULL && http->response_status_code != 0);
 }
 
-static __always_inline void http_enqueue(http_transaction_t *http, conn_tuple_t *tup) {
+static __always_inline void http_enqueue(http_transaction_t *http) {
     // Retrieve the active batch number for this CPU
     u32 cpu = bpf_get_smp_processor_id();
     http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &cpu);
@@ -57,9 +57,6 @@ static __always_inline void http_enqueue(http_transaction_t *http, conn_tuple_t 
     if (batch == NULL) {
         return;
     }
-
-    // Embed tuple information in the http_transaction_t object before enqueueing it
-    __builtin_memcpy(&http->tup, tup, sizeof(conn_tuple_t));
 
     // I haven't found a way to avoid this unrolled loop on Kernel 4.4 (newer versions work fine)
     // If you try to directly write the desired batch slot by doing
@@ -102,7 +99,7 @@ static __always_inline void http_enqueue(http_transaction_t *http, conn_tuple_t 
     }
 }
 
-static __always_inline int http_begin_request(http_transaction_t *http, http_method_t method, char *buffer, conn_tuple_t *tup) {
+static __always_inline int http_begin_request(http_transaction_t *http, http_method_t method, char *buffer) {
     http->request_method = method;
     http->request_started = bpf_ktime_get_ns();
     http->response_last_seen = 0;
@@ -162,44 +159,43 @@ static __always_inline void http_parse_data(char *p, http_packet_t *packet_type,
     }
 }
 
-static __always_inline int http_process(char *buffer, skb_info_t *skb_info, u16 src_port) {
+static __always_inline int http_process(char *buffer, http_transaction_t *http, bool connection_closed) {
+    conn_tuple_t *key = &http->tup;
+    http_transaction_t *http_map_entry = NULL;
     http_packet_t packet_type = HTTP_PACKET_UNKNOWN;
     http_method_t method = HTTP_METHOD_UNKNOWN;
     http_parse_data(buffer, &packet_type, &method);
-    http_transaction_t *http = NULL;
     http_transaction_t *to_flush = NULL;
-
-    http_transaction_t new_entry = { 0 };
-    new_entry.owned_by_src_port = src_port;
+    u16 owned_by_src_port = http->owned_by_src_port;
 
     switch(packet_type) {
     case HTTP_REQUEST:
-        bpf_map_update_elem(&http_in_flight, &skb_info->tup, &new_entry, BPF_NOEXIST);
-        http = bpf_map_lookup_elem(&http_in_flight, &skb_info->tup);
-        if (http == NULL || http->owned_by_src_port != src_port) {
+        bpf_map_update_elem(&http_in_flight, key, http, BPF_NOEXIST);
+        http_map_entry = bpf_map_lookup_elem(&http_in_flight, key);
+        if (http_map_entry == NULL || http_map_entry->owned_by_src_port != owned_by_src_port) {
             return 0;
         }
 
         // This can happen in the context of HTTP keep-alives;
-        if (http_responding(http)) {
-            new_entry = *http;
-            to_flush = &new_entry;
+        if (http_responding(http_map_entry)) {
+            *http = *http_map_entry;
+            to_flush = http;
         }
 
-        http_begin_request(http, method, buffer, &skb_info->tup);
+        http_begin_request(http_map_entry, method, buffer);
         break;
     case HTTP_RESPONSE:
-        bpf_map_update_elem(&http_in_flight, &skb_info->tup, &new_entry, BPF_NOEXIST);
-        http = bpf_map_lookup_elem(&http_in_flight, &skb_info->tup);
-        if (http == NULL) {
+        bpf_map_update_elem(&http_in_flight, key, http, BPF_NOEXIST);
+        http_map_entry = bpf_map_lookup_elem(&http_in_flight, key);
+        if (http_map_entry == NULL) {
             return 0;
         }
-        http_begin_response(http, buffer);
+        http_begin_response(http_map_entry, buffer);
         break;
     default:
         // We're either in the middle of either a request or response
-        http = bpf_map_lookup_elem(&http_in_flight, &skb_info->tup);
-        if (http == NULL) {
+        http_map_entry = bpf_map_lookup_elem(&http_in_flight, key);
+        if (http_map_entry == NULL) {
             return 0;
         }
     }
@@ -207,20 +203,20 @@ static __always_inline int http_process(char *buffer, skb_info_t *skb_info, u16 
     // If we have a (L7/application-layer) payload we want to update the response_last_seen
     // This is to prevent things such as a keep-alive adding up to the transaction latency
     if (buffer[0] != 0) {
-        http->response_last_seen = bpf_ktime_get_ns();
+        http_map_entry->response_last_seen = bpf_ktime_get_ns();
     }
 
-    bool conn_closed = skb_info->tcp_flags & TCPHDR_FIN && http->owned_by_src_port == src_port;
-    if (conn_closed) {
-        to_flush = http;
+    bool done = connection_closed && http_map_entry->owned_by_src_port == owned_by_src_port;
+    if (done) {
+        to_flush = http_map_entry;
     }
 
     if (to_flush) {
-        http_enqueue(to_flush, &skb_info->tup);
+        http_enqueue(to_flush);
     }
 
-    if (conn_closed) {
-        bpf_map_delete_elem(&http_in_flight, &skb_info->tup);
+    if (done) {
+        bpf_map_delete_elem(&http_in_flight, key);
     }
 
     return 0;

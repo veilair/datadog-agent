@@ -14,11 +14,14 @@ static __always_inline bool dns_stats_enabled() {
 // All structs referenced here are kernel independent as they simply map protocol headers (Ethernet, IP and UDP).
 SEC("socket/dns_filter")
 int socket__dns_filter(struct __sk_buff* skb) {
-    skb_info_t skb_info;
+    conn_tuple_t tup;
+    skb_info_t skb_info = {
+        .tup = &tup,
+    };
     if (!read_conn_tuple_skb(skb, &skb_info)) {
         return 0;
     }
-    if (skb_info.tup.sport != 53 && (!dns_stats_enabled() || skb_info.tup.dport != 53)) {
+    if (tup.sport != 53 && (!dns_stats_enabled() || tup.dport != 53)) {
         return 0;
     }
 
