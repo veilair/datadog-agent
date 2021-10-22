@@ -103,11 +103,6 @@ static __always_inline void http_enqueue(http_transaction_t *http, conn_tuple_t 
 }
 
 static __always_inline int http_begin_request(http_transaction_t *http, http_method_t method, char *buffer, conn_tuple_t *tup) {
-    // This can happen in the context of HTTP keep-alives;
-    if (http_responding(http)) {
-        http_enqueue(http, tup);
-    }
-
     http->request_method = method;
     http->request_started = bpf_ktime_get_ns();
     http->response_last_seen = 0;
@@ -172,6 +167,7 @@ static __always_inline int http_process(char *buffer, skb_info_t *skb_info, u16 
     http_method_t method = HTTP_METHOD_UNKNOWN;
     http_parse_data(buffer, &packet_type, &method);
     http_transaction_t *http = NULL;
+    http_transaction_t *to_flush = NULL;
 
     http_transaction_t new_entry = { 0 };
     new_entry.owned_by_src_port = src_port;
@@ -183,6 +179,13 @@ static __always_inline int http_process(char *buffer, skb_info_t *skb_info, u16 
         if (http == NULL || http->owned_by_src_port != src_port) {
             return 0;
         }
+
+        // This can happen in the context of HTTP keep-alives;
+        if (http_responding(http)) {
+            new_entry = *http;
+            to_flush = &new_entry;
+        }
+
         http_begin_request(http, method, buffer, &skb_info->tup);
         break;
     case HTTP_RESPONSE:
@@ -207,8 +210,16 @@ static __always_inline int http_process(char *buffer, skb_info_t *skb_info, u16 
         http->response_last_seen = bpf_ktime_get_ns();
     }
 
-    if (skb_info->tcp_flags & TCPHDR_FIN && http->owned_by_src_port == src_port) {
-        http_enqueue(http, &skb_info->tup);
+    bool conn_closed = skb_info->tcp_flags & TCPHDR_FIN && http->owned_by_src_port == src_port;
+    if (conn_closed) {
+        to_flush = http;
+    }
+
+    if (to_flush) {
+        http_enqueue(to_flush, &skb_info->tup);
+    }
+
+    if (conn_closed) {
         bpf_map_delete_elem(&http_in_flight, &skb_info->tup);
     }
 
