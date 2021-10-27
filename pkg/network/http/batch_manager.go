@@ -30,14 +30,16 @@ type batchManager struct {
 	numCPUs    int
 }
 
-func newBatchManager(batchMap, batchStateMap *ebpf.Map, numCPUs int) *batchManager {
+func newBatchManager(batchMap, batchStateMap, bufferMap *ebpf.Map, numCPUs int) *batchManager {
 	batch := new(httpBatch)
 	state := new(C.http_batch_state_t)
 	stateByCPU := make([]usrBatchState, numCPUs)
+	var buffer [HTTPBufferSize]byte
 
 	for i := 0; i < numCPUs; i++ {
 		// Initialize eBPF maps
 		batchStateMap.Put(unsafe.Pointer(&i), unsafe.Pointer(state))
+		bufferMap.Put(unsafe.Pointer(&i), unsafe.Pointer(&buffer[0]))
 		for j := 0; j < HTTPBatchPages; j++ {
 			key := &httpBatchKey{cpu: C.uint(i), page_num: C.uint(j)}
 			batchMap.Put(unsafe.Pointer(key), unsafe.Pointer(batch))

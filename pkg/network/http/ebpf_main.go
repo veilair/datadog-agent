@@ -18,6 +18,7 @@ import (
 
 const (
 	httpInFlightMap          = "http_in_flight"
+	httpBufferMap            = "http_buffer"
 	httpBatchesMap           = "http_batches"
 	httpBatchStateMap        = "http_batch_state"
 	httpNotificationsPerfMap = "http_notifications"
@@ -63,6 +64,7 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: httpInFlightMap},
+			{Name: httpBufferMap},
 			{Name: httpBatchesMap},
 			{Name: httpBatchStateMap},
 			{Name: sslSockByCtxMap},

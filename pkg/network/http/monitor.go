@@ -68,6 +68,11 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		return nil, err
 	}
 
+	bufferMap, _, err := mgr.GetMap(httpBufferMap)
+	if err != nil {
+		return nil, err
+	}
+
 	notificationMap, _, _ := mgr.GetMap(httpNotificationsPerfMap)
 	numCPUs := int(notificationMap.ABI().MaxEntries)
 
@@ -83,7 +88,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 	return &Monitor{
 		handler:                handler,
 		ebpfProgram:            mgr,
-		batchManager:           newBatchManager(batchMap, batchStateMap, numCPUs),
+		batchManager:           newBatchManager(batchMap, batchStateMap, bufferMap, numCPUs),
 		batchCompletionHandler: mgr.batchCompletionHandler,
 		telemetry:              telemetry,
 		pollRequests:           make(chan chan map[Key]RequestStats),

@@ -15,6 +15,15 @@ struct bpf_map_def SEC("maps/http_in_flight") http_in_flight = {
     .namespace = "",
 };
 
+struct bpf_map_def SEC("maps/http_buffer") http_buffer = {
+    .type = BPF_MAP_TYPE_HASH,
+    .key_size = sizeof(u32),
+    .value_size = HTTP_BUFFER_SIZE,
+    .max_entries = 1024,
+    .pinning = 0,
+    .namespace = "",
+};
+
 /* This map used for notifying userspace that a HTTP batch is ready to be consumed */
 struct bpf_map_def SEC("maps/http_notifications") http_notifications = {
     .type = BPF_MAP_TYPE_PERF_EVENT_ARRAY,

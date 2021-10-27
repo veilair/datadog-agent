@@ -28,6 +28,33 @@ static __always_inline void read_skb_data(struct __sk_buff* skb, u32 offset, cha
     }
 }
 
+static __always_inline void copy_to_buffer(char *buffer, void *src, size_t len) {
+    if (len < HTTP_BUFFER_SIZE) {
+        return;
+    }
+
+    // the reason why we do multiple bpf_probe_read calls is because
+    // 1) kernel 4.4 doesn't allow to read data directly into a map entry (where our buffer is located)
+    //    (in other words, the first argument of bpf_probe_read must be a stack pointer)
+    // 2) we want to save stack space, so we copy one character at a time;
+    char c = 0;
+#pragma unroll
+    for (int i = 0; i < HTTP_BUFFER_SIZE; i++) {
+        bpf_probe_read(&c, sizeof(c), &src[i]);
+        buffer[i] = c;
+    }
+}
+
+static __always_inline char* get_http_buffer() {
+    u32 cpu = bpf_get_smp_processor_id();
+    char* buffer = bpf_map_lookup_elem(&http_buffer, &cpu);
+    if (!buffer) {
+        return NULL;
+    }
+    __builtin_memset(buffer, 0, HTTP_BUFFER_SIZE);
+    return buffer;
+}
+
 SEC("socket/http_filter")
 int socket__http_filter(struct __sk_buff* skb) {
     http_transaction_t http = { 0 };
@@ -53,8 +80,10 @@ int socket__http_filter(struct __sk_buff* skb) {
         flip_tuple(&http.tup);
     }
 
-    char buffer[HTTP_BUFFER_SIZE];
-    __builtin_memset(buffer, 0, sizeof(buffer));
+    char* buffer = get_http_buffer();
+    if (!buffer) {
+        return 0;
+    }
     read_skb_data(skb, skb_info.data_off, buffer);
     bool connection_closed = skb_info.tcp_flags & TCPHDR_FIN;
     http_process(buffer, &http, connection_closed);
@@ -183,11 +212,11 @@ int uretprobe__SSL_read(struct pt_regs* ctx) {
     }
 
     u32 len = (u32)PT_REGS_RC(ctx);
-    char buffer[HTTP_BUFFER_SIZE];
-    __builtin_memset(buffer, 0, sizeof(buffer));
-    if (len >= HTTP_BUFFER_SIZE) {
-        bpf_probe_read(buffer, sizeof(buffer), args->buf);
+    char* buffer = get_http_buffer();
+    if (!buffer) {
+        return 0;
     }
+    copy_to_buffer(buffer, args->buf, len);
 
     http_transaction_t http = {0};
     __builtin_memcpy(&http.tup, t, sizeof(conn_tuple_t));
@@ -208,11 +237,11 @@ int uprobe__SSL_write(struct pt_regs* ctx) {
 
     void *ssl_buffer = (void *)PT_REGS_PARM2(ctx);
     size_t len = (size_t)PT_REGS_PARM3(ctx);
-    char buffer[HTTP_BUFFER_SIZE];
-    __builtin_memset(buffer, 0, sizeof(buffer));
-    if (len >= HTTP_BUFFER_SIZE) {
-        bpf_probe_read(buffer, sizeof(buffer), ssl_buffer);
+    char* buffer = get_http_buffer();
+    if (!buffer) {
+        return 0;
     }
+    copy_to_buffer(buffer, ssl_buffer, len);
 
     http_transaction_t http = {0};
     __builtin_memcpy(&http.tup, t, sizeof(conn_tuple_t));
