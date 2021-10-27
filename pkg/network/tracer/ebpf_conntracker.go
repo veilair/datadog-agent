@@ -262,6 +262,8 @@ func (e *ebpfConntracker) delete(key *netebpf.ConntrackTuple) {
 	}
 }
 
+func (e *ebpfConntracker) Reset() {}
+
 func (e *ebpfConntracker) DeleteTranslation(stats network.ConnectionStats) {
 	start := time.Now()
 	key := tuplePool.Get().(*netebpf.ConntrackTuple)

@@ -300,6 +300,7 @@ func (t *Tracer) Stop() {
 func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
 	t.bufferLock.Lock()
 	defer t.bufferLock.Unlock()
+	defer t.conntracker.Reset()
 	log.Tracef("GetActiveConnections clientID=%s", clientID)
 
 	t.ebpfTracer.FlushPending()

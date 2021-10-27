@@ -24,11 +24,16 @@ const (
 	defaultOrphanTimeout = 2 * time.Minute
 )
 
+var dnatTestIP util.Address
+
+func init() { dnatTestIP = util.AddressFromString("2.2.2.2") }
+
 // Conntracker is a wrapper around go-conntracker that keeps a record of all connections in user space
 type Conntracker interface {
 	GetTranslationForConn(network.ConnectionStats) *network.IPTranslation
 	DeleteTranslation(network.ConnectionStats)
 	GetStats() map[string]int64
+	Reset()
 	Close()
 }
 
@@ -121,6 +126,12 @@ func newConntrackerOnce(procRoot string, maxStateSize, targetRateLimit int, list
 
 	log.Infof("initialized conntrack with target_rate_limit=%d messages/sec", targetRateLimit)
 	return ctr, nil
+}
+
+func (ctr *realConntracker) Reset() {
+	ctr.Lock()
+	defer ctr.Unlock()
+	ctr.cache.missed = make(map[connKey]time.Time)
 }
 
 func (ctr *realConntracker) GetTranslationForConn(c network.ConnectionStats) *network.IPTranslation {
@@ -298,6 +309,7 @@ func (ctr *realConntracker) compact() {
 
 type conntrackCache struct {
 	cache         *simplelru.LRU
+	missed        map[connKey]time.Time
 	orphans       *list.List
 	orphanTimeout time.Duration
 }
@@ -306,6 +318,7 @@ func newConntrackCache(maxSize int, orphanTimeout time.Duration) *conntrackCache
 	c := &conntrackCache{
 		orphans:       list.New(),
 		orphanTimeout: orphanTimeout,
+		missed:        make(map[connKey]time.Time),
 	}
 
 	c.cache, _ = simplelru.NewLRU(maxSize, func(key, value interface{}) {
@@ -321,6 +334,10 @@ func newConntrackCache(maxSize int, orphanTimeout time.Duration) *conntrackCache
 func (cc *conntrackCache) Get(k connKey) (*translationEntry, bool) {
 	v, ok := cc.cache.Get(k)
 	if !ok {
+		if k.dstIP == dnatTestIP {
+			log.Debugf("missing translation for connection with NAT: %+v", k)
+			cc.missed[k] = time.Now()
+		}
 		return nil, false
 	}
 
@@ -342,6 +359,13 @@ func (cc *conntrackCache) Add(c Con, orphan bool) (evicts int) {
 		key, ok := formatKey(keyTuple)
 		if !ok {
 			return
+		}
+
+		if key.dstIP == dnatTestIP {
+			if then, ok := cc.missed[key]; ok {
+				log.Debugf("delayed addition to cache: key=%+v delta=%s", key, time.Now().Sub(then))
+				delete(cc.missed, key)
+			}
 		}
 
 		if v, ok := cc.cache.Peek(key); ok {

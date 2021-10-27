@@ -19,6 +19,9 @@ func (*noOpConntracker) GetTranslationForConn(c network.ConnectionStats) *networ
 func (*noOpConntracker) DeleteTranslation(c network.ConnectionStats) {
 
 }
+func (*noOpConntracker) Reset() {
+
+}
 
 func (*noOpConntracker) Close() {}
 
