@@ -27,6 +27,7 @@ import (
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"google.golang.org/grpc"
 )
 
@@ -46,11 +47,20 @@ const (
 	RTContainerCheckName = "rtcontainer"
 	ConnectionsCheckName = "connections"
 	PodCheckName         = "pod"
+	DiscoveryCheckName   = "process_discovery"
 
 	NetworkCheckName        = "Network"
 	OOMKillCheckName        = "OOM Kill"
 	TCPQueueLengthCheckName = "TCP queue length"
 	ProcessModuleCheckName  = "Process Module"
+
+	ProcessCheckDefaultInterval          = 10 * time.Second
+	RTProcessCheckDefaultInterval        = 2 * time.Second
+	ContainerCheckDefaultInterval        = 10 * time.Second
+	RTContainerCheckDefaultInterval      = 2 * time.Second
+	ConnectionsCheckDefaultInterval      = 30 * time.Second
+	PodCheckDefaultInterval              = 10 * time.Second
+	ProcessDiscoveryCheckDefaultInterval = 4 * time.Hour
 )
 
 var (
@@ -75,6 +85,8 @@ type WindowsConfig struct {
 	ArgsRefreshInterval int
 	// Controls getting process arguments immediately when a new process is discovered
 	AddNewArgs bool
+	// UsePerfCounters enables new process check using performance counters for process collection
+	UsePerfCounters bool
 }
 
 // AgentConfig is the global config for the process-agent. This information
@@ -100,15 +112,10 @@ type AgentConfig struct {
 	StatsdHost                string
 	StatsdPort                int
 	ProcessExpVarPort         int
-	ProfilingEnabled          bool
-	ProfilingSite             string
-	ProfilingURL              string
-	ProfilingEnvironment      string
-	ProfilingPeriod           time.Duration
-	ProfilingCPUDuration      time.Duration
-	ProfilingMutexFraction    int
-	ProfilingBlockRate        int
-	ProfilingWithGoroutines   bool
+
+	// profiling settings, or nil if profiling is not enabled
+	ProfilingSettings *profiling.Settings
+
 	// host type of the agent, used to populate container payload with additional host information
 	ContainerHostType model.ContainerHostType
 
@@ -219,12 +226,13 @@ func NewDefaultAgentConfig(canAccessContainers bool) *AgentConfig {
 		// Check config
 		EnabledChecks: enabledChecks,
 		CheckIntervals: map[string]time.Duration{
-			ProcessCheckName:     10 * time.Second,
-			RTProcessCheckName:   2 * time.Second,
-			ContainerCheckName:   10 * time.Second,
-			RTContainerCheckName: 2 * time.Second,
-			ConnectionsCheckName: 30 * time.Second,
-			PodCheckName:         10 * time.Second,
+			ProcessCheckName:     ProcessCheckDefaultInterval,
+			RTProcessCheckName:   RTProcessCheckDefaultInterval,
+			ContainerCheckName:   ContainerCheckDefaultInterval,
+			RTContainerCheckName: RTContainerCheckDefaultInterval,
+			ConnectionsCheckName: ConnectionsCheckDefaultInterval,
+			PodCheckName:         PodCheckDefaultInterval,
+			DiscoveryCheckName:   ProcessDiscoveryCheckDefaultInterval,
 		},
 
 		// DataScrubber to hide command line sensitive words
@@ -416,6 +424,8 @@ func loadEnvVariables() {
 		{"DD_PROCESS_AGENT_MAX_PER_MESSAGE", "process_config.max_per_message"},
 		{"DD_PROCESS_AGENT_MAX_CTR_PROCS_PER_MESSAGE", "process_config.max_ctr_procs_per_message"},
 		{"DD_PROCESS_AGENT_CMD_PORT", "process_config.cmd_port"},
+		{"DD_PROCESS_AGENT_WINDOWS_USE_PERF_COUNTERS", "process_config.windows.use_perf_counters"},
+		{"DD_PROCESS_AGENT_DISCOVERY_ENABLED", "process_config.process_discovery.enabled"},
 		{"DD_ORCHESTRATOR_URL", "orchestrator_explorer.orchestrator_dd_url"},
 		{"DD_HOSTNAME", "hostname"},
 		{"DD_DOGSTATSD_PORT", "dogstatsd_port"},

@@ -159,6 +159,25 @@ func TestSendTimeoutEnhancedMetric(t *testing.T) {
 	}})
 }
 
+func TestSendInvocationEnhancedMetric(t *testing.T) {
+	metricsChan := make(chan []metrics.MetricSample)
+	tags := []string{"functionname:test-function"}
+
+	go SendInvocationEnhancedMetric(tags, metricsChan)
+
+	generatedMetrics := <-metricsChan
+
+	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
+		Name:       "aws.lambda.enhanced.invocations",
+		Value:      1.0,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		// compare the generated timestamp to itself because we can't know its value
+		Timestamp: generatedMetrics[0].Timestamp,
+	}})
+}
+
 func TestCalculateEstimatedCost(t *testing.T) {
 	// Latest Lambda pricing and billing examples from https://aws.amazon.com/lambda/pricing/
 	const freeTierComputeCost = lambdaPricePerGbSecond * 400000
@@ -174,4 +193,50 @@ func TestCalculateEstimatedCost(t *testing.T) {
 	// and it ran for 200ms each time, your charges would be $11.63
 	estimatedCost = 30000000.0 * calculateEstimatedCost(200.0, 128.0)
 	assert.InDelta(t, 11.63, estimatedCost-freeTierCostAdjustment, 0.01)
+}
+
+func TestGenerateRuntimeDurationMetricNoStartDate(t *testing.T) {
+	metricsChan := make(chan []metrics.MetricSample)
+	tags := []string{"functionname:test-function"}
+	startTime := time.Time{}
+	endTime := time.Now()
+	go GenerateRuntimeDurationMetric(startTime, endTime, "myStatus", tags, metricsChan)
+	select {
+	case <-metricsChan:
+		assert.Fail(t, "This should not happen since the channel should be empty")
+	default:
+		// nothing to do here
+	}
+}
+
+func TestGenerateRuntimeDurationMetricNoEndDate(t *testing.T) {
+	metricsChan := make(chan []metrics.MetricSample)
+	tags := []string{"functionname:test-function"}
+	startTime := time.Now()
+	endTime := time.Time{}
+	go GenerateRuntimeDurationMetric(startTime, endTime, "myStatus", tags, metricsChan)
+	select {
+	case <-metricsChan:
+		assert.Fail(t, "This should not happen since the channel should be empty")
+	default:
+		// nothing to do here
+	}
+}
+
+func TestGenerateRuntimeDurationMetricOK(t *testing.T) {
+	metricsChan := make(chan []metrics.MetricSample)
+	tags := []string{"functionname:test-function"}
+	startTime := time.Date(2020, 01, 01, 01, 01, 01, 500000000, time.UTC)
+	endTime := time.Date(2020, 01, 01, 01, 01, 01, 653000000, time.UTC) //153 ms later
+	go GenerateRuntimeDurationMetric(startTime, endTime, "myStatus", tags, metricsChan)
+	generatedMetrics := <-metricsChan
+	assert.Equal(t, generatedMetrics, []metrics.MetricSample{{
+		Name:       "aws.lambda.enhanced.runtime_duration",
+		Value:      153,
+		Mtype:      metrics.DistributionType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  float64(endTime.UnixNano()),
+	}})
+
 }
