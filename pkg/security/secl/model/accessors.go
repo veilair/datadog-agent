@@ -511,8 +511,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "container.tags":
 		return &eval.StringArrayEvaluator{
-
-			EvalFnc: func(ctx *eval.Context) []string {
+			EvalFnc: func(ctx *eval.Context) StringValues {
 
 				return (*Event)(ctx.Object).ContainerContext.Tags
 			},
@@ -532,8 +531,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "exec.args_flags":
 		return &eval.StringArrayEvaluator{
-
-			EvalFnc: func(ctx *eval.Context) []string {
+			EvalFnc: func(ctx *eval.Context) StringValues {
 
 				return (*Event)(ctx.Object).Exec.Argv
 			},
@@ -543,8 +541,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "exec.args_options":
 		return &eval.StringArrayEvaluator{
-
-			EvalFnc: func(ctx *eval.Context) []string {
+			EvalFnc: func(ctx *eval.Context) StringValues {
 
 				return (*Event)(ctx.Object).Exec.Argv
 			},
@@ -564,8 +561,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "exec.argv":
 		return &eval.StringArrayEvaluator{
-
-			EvalFnc: func(ctx *eval.Context) []string {
+			EvalFnc: func(ctx *eval.Context) StringValues {
 
 				return (*Event)(ctx.Object).Exec.Argv
 			},
@@ -655,8 +651,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "exec.envs":
 		return &eval.StringArrayEvaluator{
-
-			EvalFnc: func(ctx *eval.Context) []string {
+			EvalFnc: func(ctx *eval.Context) StringValues {
 
 				return (*Event)(ctx.Object).Exec.Envs
 			},
