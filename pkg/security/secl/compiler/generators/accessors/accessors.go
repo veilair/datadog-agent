@@ -61,7 +61,7 @@ func resolveSymbol(pkg, symbol string) (types.Object, error) {
 		return typePackage.Scope().Lookup(symbol), nil
 	}
 
-	return nil, fmt.Errorf("Failed to retrieve package info for %s", pkg)
+	return nil, fmt.Errorf("failed to retrieve package info for %s", pkg)
 }
 
 func origTypeToBasicType(kind string) string {
@@ -72,7 +72,7 @@ func origTypeToBasicType(kind string) string {
 	return kind
 }
 
-func handleBasic(name, alias, kind, event string, iterator *common.StructField, isArray bool, commentText string) {
+func handleBasic(name, alias, kind, event string, iterator *common.StructField, isArray bool, opOverrides string, commentText string) {
 	fmt.Printf("handleBasic %s %s\n", name, kind)
 
 	basicType := origTypeToBasicType(kind)
@@ -85,12 +85,13 @@ func handleBasic(name, alias, kind, event string, iterator *common.StructField, 
 		OrigType:    kind,
 		Iterator:    iterator,
 		CommentText: commentText,
+		OpOverrides: opOverrides,
 	}
 
 	module.EventTypes[event] = true
 }
 
-func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool, commentText string) error {
+func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName string, fieldType *ast.Ident, event string, iterator *common.StructField, dejavu map[string]bool, isArray bool, opOverride string, commentText string) error {
 	fmt.Printf("handleField fieldName %s, alias %s, prefix %s, aliasPrefix %s, pkgName %s, fieldType, %s\n", name, alias, prefix, aliasPrefix, pkgName, fieldType)
 
 	switch fieldType.Name {
@@ -99,7 +100,7 @@ func handleField(astFile *ast.File, name, alias, prefix, aliasPrefix, pkgName st
 			name = prefix + "." + name
 			alias = aliasPrefix + "." + alias
 		}
-		handleBasic(name, alias, fieldType.Name, event, iterator, isArray, commentText)
+		handleBasic(name, alias, fieldType.Name, event, iterator, isArray, opOverride, commentText)
 
 	default:
 		symbol, err := resolveSymbol(pkgName, fieldType.Name)
@@ -194,7 +195,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 						continue
 					}
 
-					var opOverride string
+					var opOverrides string
 					var fields []seclField
 					fieldType, isPointer, isArray := getFieldIdent(field)
 
@@ -218,7 +219,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 
 								fields = append(fields, field)
 							case "op_override":
-								opOverride = tag.Value()
+								opOverrides = tag.Value()
 							}
 						}
 					} else {
@@ -253,6 +254,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 								IsArray:       isArray,
 								Weight:        weight,
 								CommentText:   fieldCommentText,
+								OpOverrides:   opOverrides,
 							}
 
 							fieldIterator = module.Iterators[alias]
@@ -276,7 +278,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 								IsArray:     isArray,
 								Weight:      weight,
 								CommentText: fieldCommentText,
-								OpOverride:  opOverride,
+								OpOverrides: opOverrides,
 							}
 
 							module.EventTypes[event] = true
@@ -288,7 +290,7 @@ func handleSpec(astFile *ast.File, spec interface{}, prefix, aliasPrefix, event 
 						dejavu[fieldName] = true
 
 						if fieldType != nil {
-							if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false, fieldCommentText); err != nil {
+							if err := handleField(astFile, fieldName, fieldAlias, prefix, aliasPrefix, pkgname, fieldType, event, fieldIterator, dejavu, false, opOverrides, fieldCommentText); err != nil {
 								log.Print(err)
 							}
 
@@ -347,14 +349,14 @@ func parseFile(filename string, pkgName string) (*common.Module, error) {
 
 	astFile, err := conf.ParseFile(filename, nil)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to parse %s: %s", filename, err)
+		return nil, fmt.Errorf("failed to parse %s: %s", filename, err)
 	}
 
 	conf.Import(pkgName)
 
 	program, err = conf.Load()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to load %s (%s): %s", filename, pkgName, err)
+		return nil, fmt.Errorf("failed to load %s (%s): %s", filename, pkgName, err)
 	}
 
 	packages = make(map[string]*types.Package, len(program.AllPackages))
@@ -485,6 +487,9 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 
 	case "{{$Name}}":
 		return &{{$EvaluatorType}}{
+			{{- if and $Field.OpOverrides (not $Mock)}}
+			OpOverrides: {{$Field.OpOverrides}},
+			{{- end}}
 			{{- if $Field.Iterator}}
 				EvalFnc: func(ctx *eval.Context) []{{$Field.ReturnType}} {
 					{{- if not $Mock }}
@@ -539,13 +544,8 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				{{- $ArrayPrefix := ""}}
 				{{- $ReturnType := $Field.ReturnType}}
 				{{- if $Field.IsArray}}
-					{{- if eq $ReturnType "string" }}
 					{{$ArrayPrefix = "[]"}}
-					{{end -}}
 				{{end}}
-				{{- if and $Field.OpOverride (not $Mock)}}
-				OpOverride: $Field.OpOverride,
-				{{- end}}
 				EvalFnc: func(ctx *eval.Context) {{$ArrayPrefix}}{{$ReturnType}} {
 					{{$Return := $Field.Name | printf "(*Event)(ctx.Object).%s"}}
 					{{- if and (ne $Field.Handler "") (not $Mock)}}
