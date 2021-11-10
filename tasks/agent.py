@@ -170,9 +170,6 @@ def build(
         build_exclude = [] if build_exclude is None else build_exclude.split(",")
         build_tags = get_build_tags(build_include, build_exclude)
 
-    # Generating go source from templates by running go generate on ./pkg/status
-    generate(ctx)
-
     cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/{flavor}"
