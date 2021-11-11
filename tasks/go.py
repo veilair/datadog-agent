@@ -429,7 +429,7 @@ def generate_protobuf(ctx):
     protodep_root = os.path.join(proto_root, "protodep")
 
     print("nuking old definitions at: {}".format(proto_root))
-    file_list = glob.glob(os.path.join(proto_root, "pbgo", "*.go"))
+    file_list = glob.glob(os.path.join(proto_root, "pbgo", "*.pb.go"))
     for file_path in file_list:
         try:
             os.remove(file_path)

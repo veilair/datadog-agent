@@ -399,7 +399,7 @@ func resourceFromTags(meta map[string]string) string {
 // status2Error checks the given status and events and applies any potential error and messages
 // to the given span attributes.
 func status2Error(status *otlp.Status, events []*otlp.Span_Event, span *pb.Span) {
-	if status == nil || status.Code != otlp.STATUS_CODE_ERROR {
+	if status == nil || status.Code != otlp.Status_STATUS_CODE_ERROR {
 		return
 	}
 	span.Error = 1
@@ -424,9 +424,9 @@ func status2Error(status *otlp.Status, events []*otlp.Span_Event, span *pb.Span)
 func spanKind2Type(kind otlp.Span_SpanKind, span *pb.Span) string {
 	var typ string
 	switch kind {
-	case otlp.SPAN_KIND_SERVER:
+	case otlp.Span_SPAN_KIND_SERVER:
 		typ = "web"
-	case otlp.SPAN_KIND_CLIENT:
+	case otlp.Span_SPAN_KIND_CLIENT:
 		typ = "http"
 		db, ok := span.Meta[string(semconv.AttributeDBSystem)]
 		if !ok {
