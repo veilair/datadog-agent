@@ -4,6 +4,8 @@ package datadog.trace;
 
 import "gogo/protobuf/gogoproto/gogo.proto";
 
+option go_package = "pkg/proto/pbgo/trace"; // golang
+
 message Span {
     string service = 1 [(gogoproto.jsontag) = "service", (gogoproto.moretags) = "msg:\"service\""];
     string name = 2 [(gogoproto.jsontag) = "name", (gogoproto.moretags) = "msg:\"name\""];

@@ -4,6 +4,8 @@ package datadog.trace;
 
 import "datadog/trace/span.proto";
 
+option go_package = "pkg/proto/pbgo/trace"; // golang
+
 message APITrace {
 	uint64 traceID = 1;
 	repeated Span spans = 2;

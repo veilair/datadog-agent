@@ -4,6 +4,7 @@ package datadog.trace;
 
 import "gogo/protobuf/gogoproto/gogo.proto";
 
+option go_package = "pkg/proto/pbgo/trace"; // golang
 
 // protoc --gogofaster_out=. -I $GOPATH/src -I . stats.proto
 

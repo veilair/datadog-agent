@@ -18,6 +18,8 @@ package datadog.trace.otlp;
 
 import "datadog/trace/otlp/common.proto";
 
+option go_package = "pkg/proto/pbgo/trace/otlp"; // golang
+
 // Resource information.
 message Resource {
   // Set of labels that describe the resource.

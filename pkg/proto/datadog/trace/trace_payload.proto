@@ -5,6 +5,8 @@ package datadog.trace;
 import "datadog/trace/trace.proto";
 import "datadog/trace/span.proto";
 
+option go_package = "pkg/proto/pbgo/trace"; // golang
+
 message TracePayload {
         string hostName = 1;
         string env = 2;

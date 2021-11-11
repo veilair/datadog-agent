@@ -19,6 +19,8 @@ package datadog.trace.otlp;
 import "datadog/trace/otlp/resource.proto";
 import "datadog/trace/otlp/common.proto";
 
+option go_package = "pkg/proto/pbgo/trace/otlp"; // golang
+
 // A collection of InstrumentationLibrarySpans from a Resource.
 message ResourceSpans {
   // The resource for the spans in this message.

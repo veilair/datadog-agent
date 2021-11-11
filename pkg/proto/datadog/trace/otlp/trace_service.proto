@@ -18,6 +18,8 @@ package datadog.trace.otlp;
 
 import "datadog/trace/otlp/trace.proto";
 
+option go_package = "pkg/proto/pbgo/trace/otlp"; // golang
+
 // Service that can be used to push spans between one Application instrumented with
 // OpenTelemetry and an collector, or between an collector and a central collector (in this
 // case spans are sent/received to/from multiple Applications).

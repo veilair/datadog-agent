@@ -4,6 +4,8 @@ package datadog.trace;
 
 import "gogo/protobuf/gogoproto/gogo.proto";
 
+option go_package = "pkg/proto/pbgo/trace"; // golang
+
 // TargetTPS contains the targeted traces per second the agent should try to sample for a particular service and env
 message TargetTPS {
     string service = 1;
