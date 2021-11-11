@@ -414,14 +414,13 @@ def generate_protobuf(ctx):
         'config': False,
         'api/v1': True,
         'trace': False,
-        'trace/otlp': False,
+        'trace/otlp': True,
         'process': False,
     }
 
     # maybe put this in a separate function
     PACKAGE_PLUGINS = {
         'trace': '--gogoslick_out=',
-        'trace/otlp': '--gogoslick_out=',
     }
 
     base = os.path.dirname(os.path.abspath(__file__))

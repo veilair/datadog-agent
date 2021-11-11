@@ -5,7 +5,7 @@
 
 package traceutil
 
-import "github.com/DataDog/datadog-agent/pkg/trace/pb"
+import pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 
 const (
 	// This is a special metric, it's 1 if the span is top-level, 0 if not.

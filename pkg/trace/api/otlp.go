@@ -20,14 +20,14 @@ import (
 	"sync"
 	"time"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/otlp"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb/otlppb"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -86,7 +86,7 @@ func (o *OTLPReceiver) Start() {
 			log.Criticalf("Error starting OpenTelemetry gRPC server: %v", err)
 		} else {
 			o.grpcsrv = grpc.NewServer()
-			otlppb.RegisterTraceServiceServer(o.grpcsrv, o)
+			otlp.RegisterTraceServiceServer(o.grpcsrv, o)
 			o.wg.Add(1)
 			go func() {
 				defer o.wg.Done()
@@ -114,13 +114,13 @@ func (o *OTLPReceiver) Stop() {
 	o.wg.Wait()
 }
 
-// Export implements otlppb.TraceServiceServer
-func (o *OTLPReceiver) Export(ctx context.Context, in *otlppb.ExportTraceServiceRequest) (*otlppb.ExportTraceServiceResponse, error) {
+// Export implements otlp.TraceServiceServer
+func (o *OTLPReceiver) Export(ctx context.Context, in *otlp.ExportTraceServiceRequest) (*otlp.ExportTraceServiceResponse, error) {
 	defer timing.Since("datadog.trace_agent.otlp.process_grpc_request_ms", time.Now())
 	md, _ := metadata.FromIncomingContext(ctx)
 	metrics.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md), otlpProtocolGRPC), 1)
 	o.processRequest(otlpProtocolGRPC, http.Header(md), in)
-	return &otlppb.ExportTraceServiceResponse{}, nil
+	return &otlp.ExportTraceServiceResponse{}, nil
 }
 
 // ServeHTTP implements http.Handler
@@ -147,7 +147,7 @@ func (o *OTLPReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	metrics.Count("datadog.trace_agent.otlp.bytes", int64(len(slurp)), mtags, 1)
-	var in otlppb.ExportTraceServiceRequest
+	var in otlp.ExportTraceServiceRequest
 	switch getMediaType(req) {
 	case "application/x-protobuf":
 		if err := proto.Unmarshal(slurp, &in); err != nil {
@@ -199,7 +199,7 @@ func fastHeaderGet(h http.Header, canonicalKey string) string {
 
 // processRequest processes the incoming request in. It marks it as received by the given protocol
 // using the given headers.
-func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in *otlppb.ExportTraceServiceRequest) {
+func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in *otlp.ExportTraceServiceRequest) {
 	for _, rspans := range in.ResourceSpans {
 		// each rspans is coming from a different resource and should be considered
 		// a separate payload; typically there is only one item in this slice
@@ -248,7 +248,7 @@ func (o *OTLPReceiver) processRequest(protocol string, header http.Header, in *o
 }
 
 // marshalEvents marshals events into JSON.
-func marshalEvents(events []*otlppb.Span_Event) string {
+func marshalEvents(events []*otlp.Span_Event) string {
 	var str strings.Builder
 	str.WriteString("[")
 	for i, e := range events {
@@ -304,7 +304,7 @@ func marshalEvents(events []*otlppb.Span_Event) string {
 
 // convertSpan converts the span in to a Datadog span, and uses the rattr resource tags and the lib instrumentation
 // library attributes to further augment it.
-func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in *otlppb.Span) *pb.Span {
+func convertSpan(rattr map[string]string, lib *otlp.InstrumentationLibrary, in *otlp.Span) *pb.Span {
 	name := spanKindName(in.Kind)
 	if lib.Name != "" {
 		name = lib.Name + "." + name
@@ -343,9 +343,9 @@ func convertSpan(rattr map[string]string, lib *otlppb.InstrumentationLibrary, in
 	}
 	for _, kv := range in.Attributes {
 		switch v := kv.Value.Value.(type) {
-		case *otlppb.AnyValue_DoubleValue:
+		case *otlp.AnyValue_DoubleValue:
 			span.Metrics[kv.Key] = v.DoubleValue
-		case *otlppb.AnyValue_IntValue:
+		case *otlp.AnyValue_IntValue:
 			span.Metrics[kv.Key] = float64(v.IntValue)
 		default:
 			span.Meta[kv.Key] = anyValueString(kv.Value)
@@ -398,8 +398,8 @@ func resourceFromTags(meta map[string]string) string {
 
 // status2Error checks the given status and events and applies any potential error and messages
 // to the given span attributes.
-func status2Error(status *otlppb.Status, events []*otlppb.Span_Event, span *pb.Span) {
-	if status == nil || status.Code != otlppb.Status_STATUS_CODE_ERROR {
+func status2Error(status *otlp.Status, events []*otlp.Span_Event, span *pb.Span) {
+	if status == nil || status.Code != otlp.STATUS_CODE_ERROR {
 		return
 	}
 	span.Error = 1
@@ -421,12 +421,12 @@ func status2Error(status *otlppb.Status, events []*otlppb.Span_Event, span *pb.S
 }
 
 // spanKind2Type returns a span's type based on the given kind and other present properties.
-func spanKind2Type(kind otlppb.Span_SpanKind, span *pb.Span) string {
+func spanKind2Type(kind otlp.Span_SpanKind, span *pb.Span) string {
 	var typ string
 	switch kind {
-	case otlppb.Span_SPAN_KIND_SERVER:
+	case otlp.SPAN_KIND_SERVER:
 		typ = "web"
-	case otlppb.Span_SPAN_KIND_CLIENT:
+	case otlp.SPAN_KIND_CLIENT:
 		typ = "http"
 		db, ok := span.Meta[string(semconv.AttributeDBSystem)]
 		if !ok {
@@ -451,21 +451,21 @@ func byteArrayToUint64(b []byte) uint64 {
 	return binary.BigEndian.Uint64(b[len(b)-8:])
 }
 
-// anyValueString converts otlppb.AnyValue a to its string representation.
-func anyValueString(a *otlppb.AnyValue) string {
+// anyValueString converts otlp.AnyValue a to its string representation.
+func anyValueString(a *otlp.AnyValue) string {
 	switch v := a.Value.(type) {
-	case *otlppb.AnyValue_StringValue:
+	case *otlp.AnyValue_StringValue:
 		return v.StringValue
-	case *otlppb.AnyValue_BoolValue:
+	case *otlp.AnyValue_BoolValue:
 		if v.BoolValue {
 			return "true"
 		}
 		return "false"
-	case *otlppb.AnyValue_IntValue:
+	case *otlp.AnyValue_IntValue:
 		return strconv.FormatInt(v.IntValue, 10)
-	case *otlppb.AnyValue_DoubleValue:
+	case *otlp.AnyValue_DoubleValue:
 		return strconv.FormatFloat(v.DoubleValue, 'f', 2, 64)
-	case *otlppb.AnyValue_ArrayValue:
+	case *otlp.AnyValue_ArrayValue:
 		var str strings.Builder
 		for i, val := range v.ArrayValue.Values {
 			if i > 0 {
@@ -474,7 +474,7 @@ func anyValueString(a *otlppb.AnyValue) string {
 			str.WriteString(anyValueString(val))
 		}
 		return str.String()
-	case *otlppb.AnyValue_KvlistValue:
+	case *otlp.AnyValue_KvlistValue:
 		var str strings.Builder
 		for i, keyval := range v.KvlistValue.Values {
 			if i > 0 {
@@ -499,7 +499,7 @@ var spanKindNames = map[int32]string{
 }
 
 // spanKindName converts the given SpanKind to a valid Datadog span name.
-func spanKindName(k otlppb.Span_SpanKind) string {
+func spanKindName(k otlp.Span_SpanKind) string {
 	name, ok := spanKindNames[int32(k)]
 	if !ok {
 		return "unknown"

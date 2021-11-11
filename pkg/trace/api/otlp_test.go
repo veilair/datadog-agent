@@ -7,45 +7,45 @@ import (
 	"time"
 	"unicode"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/otlp"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb"
-	"github.com/DataDog/datadog-agent/pkg/trace/pb/otlppb"
 	"github.com/stretchr/testify/assert"
 )
 
-func makeOTLPTestSpan(start uint64) *otlppb.Span {
-	return &otlppb.Span{
+func makeOTLPTestSpan(start uint64) *otlp.Span {
+	return &otlp.Span{
 		TraceId:           otlpTestID128,
 		SpanId:            otlpTestID128,
 		TraceState:        "state",
 		ParentSpanId:      []byte{0},
 		Name:              "/path",
-		Kind:              otlppb.Span_SPAN_KIND_SERVER,
+		Kind:              otlp.SPAN_KIND_SERVER,
 		StartTimeUnixNano: start,
 		EndTimeUnixNano:   start + 200000000,
-		Attributes: []*otlppb.KeyValue{
-			{Key: "name", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "john"}}},
-			{Key: "name", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_DoubleValue{DoubleValue: 1.2}}},
-			{Key: "count", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_IntValue{IntValue: 2}}},
+		Attributes: []*otlp.KeyValue{
+			{Key: "name", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "john"}}},
+			{Key: "name", Value: &otlp.AnyValue{Value: &otlp.AnyValue_DoubleValue{DoubleValue: 1.2}}},
+			{Key: "count", Value: &otlp.AnyValue{Value: &otlp.AnyValue_IntValue{IntValue: 2}}},
 		},
 		DroppedAttributesCount: 0,
-		Events: []*otlppb.Span_Event{
+		Events: []*otlp.Span_Event{
 			{
 				TimeUnixNano: 123,
 				Name:         "boom",
-				Attributes: []*otlppb.KeyValue{
-					{Key: "message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "Out of memory"}}},
-					{Key: "accuracy", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_DoubleValue{DoubleValue: 2.4}}},
+				Attributes: []*otlp.KeyValue{
+					{Key: "message", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "Out of memory"}}},
+					{Key: "accuracy", Value: &otlp.AnyValue{Value: &otlp.AnyValue_DoubleValue{DoubleValue: 2.4}}},
 				},
 				DroppedAttributesCount: 2,
 			},
 			{
 				TimeUnixNano: 456,
 				Name:         "exception",
-				Attributes: []*otlppb.KeyValue{
-					{Key: "exception.message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "Out of memory"}}},
-					{Key: "exception.type", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "mem"}}},
-					{Key: "exception.stacktrace", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "1/2/3"}}},
+				Attributes: []*otlp.KeyValue{
+					{Key: "exception.message", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "Out of memory"}}},
+					{Key: "exception.type", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "mem"}}},
+					{Key: "exception.stacktrace", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "1/2/3"}}},
 				},
 				DroppedAttributesCount: 2,
 			},
@@ -53,9 +53,9 @@ func makeOTLPTestSpan(start uint64) *otlppb.Span {
 		DroppedEventsCount: 0,
 		Links:              nil,
 		DroppedLinksCount:  0,
-		Status: &otlppb.Status{
+		Status: &otlp.Status{
 			Message: "Error",
-			Code:    otlppb.Status_STATUS_CODE_ERROR,
+			Code:    otlp.STATUS_CODE_ERROR,
 		},
 	}
 }
@@ -64,41 +64,41 @@ var (
 	// otlpTestID128 is an Opentelemetry compatible 128-bit ID represented as a 16-element byte array.
 	otlpTestID128 = []byte{0x72, 0xdf, 0x52, 0xa, 0xf2, 0xbd, 0xe7, 0xa5, 0x24, 0x0, 0x31, 0xea, 0xd7, 0x50, 0xe5, 0xf3}
 	// otlpTestTraceServiceReq holds a basic trace request used for testing.
-	otlpTestTraceServiceReq = &otlppb.ExportTraceServiceRequest{
-		ResourceSpans: []*otlppb.ResourceSpans{
+	otlpTestTraceServiceReq = &otlp.ExportTraceServiceRequest{
+		ResourceSpans: []*otlp.ResourceSpans{
 			{
-				Resource: &otlppb.Resource{
-					Attributes: []*otlppb.KeyValue{
-						{Key: "service.name", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "mongodb"}}},
-						{Key: "binary", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "rundb"}}},
+				Resource: &otlp.Resource{
+					Attributes: []*otlp.KeyValue{
+						{Key: "service.name", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "mongodb"}}},
+						{Key: "binary", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "rundb"}}},
 					},
 					DroppedAttributesCount: 2,
 				},
-				InstrumentationLibrarySpans: []*otlppb.InstrumentationLibrarySpans{
+				InstrumentationLibrarySpans: []*otlp.InstrumentationLibrarySpans{
 					{
-						InstrumentationLibrary: &otlppb.InstrumentationLibrary{
+						InstrumentationLibrary: &otlp.InstrumentationLibrary{
 							Name:    "libname",
 							Version: "v1.2.3",
 						},
-						Spans: []*otlppb.Span{makeOTLPTestSpan(uint64(time.Now().UnixNano()))},
+						Spans: []*otlp.Span{makeOTLPTestSpan(uint64(time.Now().UnixNano()))},
 					},
 				},
 			},
 			{
-				Resource: &otlppb.Resource{
-					Attributes: []*otlppb.KeyValue{
-						{Key: "service.name", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "pylons"}}},
-						{Key: "binary", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "runweb"}}},
+				Resource: &otlp.Resource{
+					Attributes: []*otlp.KeyValue{
+						{Key: "service.name", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "pylons"}}},
+						{Key: "binary", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "runweb"}}},
 					},
 					DroppedAttributesCount: 1,
 				},
-				InstrumentationLibrarySpans: []*otlppb.InstrumentationLibrarySpans{
+				InstrumentationLibrarySpans: []*otlp.InstrumentationLibrarySpans{
 					{
-						InstrumentationLibrary: &otlppb.InstrumentationLibrary{
+						InstrumentationLibrary: &otlp.InstrumentationLibrary{
 							Name:    "othername",
 							Version: "v1.2.0",
 						},
-						Spans: []*otlppb.Span{makeOTLPTestSpan(uint64(time.Now().UnixNano()))},
+						Spans: []*otlp.Span{makeOTLPTestSpan(uint64(time.Now().UnixNano()))},
 					},
 				},
 			},
@@ -185,26 +185,26 @@ func TestOTLPReceiver(t *testing.T) {
 
 func TestOTLPHelpers(t *testing.T) {
 	t.Run("AnyValueString", func(t *testing.T) {
-		for in, out := range map[*otlppb.AnyValue]string{
-			{Value: &otlppb.AnyValue_StringValue{StringValue: "string"}}: "string",
-			{Value: &otlppb.AnyValue_BoolValue{BoolValue: true}}:         "true",
-			{Value: &otlppb.AnyValue_BoolValue{BoolValue: false}}:        "false",
-			{Value: &otlppb.AnyValue_IntValue{IntValue: 12}}:             "12",
-			{Value: &otlppb.AnyValue_DoubleValue{DoubleValue: 2.12345}}:  "2.12",
-			{Value: &otlppb.AnyValue_ArrayValue{
-				ArrayValue: &otlppb.ArrayValue{
-					Values: []*otlppb.AnyValue{
-						{Value: &otlppb.AnyValue_DoubleValue{DoubleValue: 2.12345}},
-						{Value: &otlppb.AnyValue_StringValue{StringValue: "string"}},
-						{Value: &otlppb.AnyValue_BoolValue{BoolValue: true}},
+		for in, out := range map[*otlp.AnyValue]string{
+			{Value: &otlp.AnyValue_StringValue{StringValue: "string"}}: "string",
+			{Value: &otlp.AnyValue_BoolValue{BoolValue: true}}:         "true",
+			{Value: &otlp.AnyValue_BoolValue{BoolValue: false}}:        "false",
+			{Value: &otlp.AnyValue_IntValue{IntValue: 12}}:             "12",
+			{Value: &otlp.AnyValue_DoubleValue{DoubleValue: 2.12345}}:  "2.12",
+			{Value: &otlp.AnyValue_ArrayValue{
+				ArrayValue: &otlp.ArrayValue{
+					Values: []*otlp.AnyValue{
+						{Value: &otlp.AnyValue_DoubleValue{DoubleValue: 2.12345}},
+						{Value: &otlp.AnyValue_StringValue{StringValue: "string"}},
+						{Value: &otlp.AnyValue_BoolValue{BoolValue: true}},
 					},
 				},
 			}}: "2.12,string,true",
-			{Value: &otlppb.AnyValue_KvlistValue{
-				KvlistValue: &otlppb.KeyValueList{
-					Values: []*otlppb.KeyValue{
-						{Key: "key1", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_BoolValue{BoolValue: true}}},
-						{Key: "key2", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "string"}}},
+			{Value: &otlp.AnyValue_KvlistValue{
+				KvlistValue: &otlp.KeyValueList{
+					Values: []*otlp.KeyValue{
+						{Key: "key1", Value: &otlp.AnyValue{Value: &otlp.AnyValue_BoolValue{BoolValue: true}}},
+						{Key: "key2", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "string"}}},
 					},
 				},
 			}}: "key1:true,key2:string",
@@ -223,14 +223,14 @@ func TestOTLPHelpers(t *testing.T) {
 	})
 
 	t.Run("spanKindNames", func(t *testing.T) {
-		for in, out := range map[otlppb.Span_SpanKind]string{
-			otlppb.Span_SPAN_KIND_UNSPECIFIED: "unspecified",
-			otlppb.Span_SPAN_KIND_INTERNAL:    "internal",
-			otlppb.Span_SPAN_KIND_SERVER:      "server",
-			otlppb.Span_SPAN_KIND_CLIENT:      "client",
-			otlppb.Span_SPAN_KIND_PRODUCER:    "producer",
-			otlppb.Span_SPAN_KIND_CONSUMER:    "consumer",
-			99:                                "unknown",
+		for in, out := range map[otlp.Span_SpanKind]string{
+			otlp.SPAN_KIND_UNSPECIFIED: "unspecified",
+			otlp.SPAN_KIND_INTERNAL:    "internal",
+			otlp.SPAN_KIND_SERVER:      "server",
+			otlp.SPAN_KIND_CLIENT:      "client",
+			otlp.SPAN_KIND_PRODUCER:    "producer",
+			otlp.SPAN_KIND_CONSUMER:    "consumer",
+			99:                         "unknown",
 		} {
 			assert.Equal(t, out, spanKindName(in))
 		}
@@ -238,19 +238,19 @@ func TestOTLPHelpers(t *testing.T) {
 
 	t.Run("status2Error", func(t *testing.T) {
 		for _, tt := range []struct {
-			status *otlppb.Status
-			events []*otlppb.Span_Event
+			status *otlp.Status
+			events []*otlp.Span_Event
 			out    pb.Span
 		}{
 			{
-				status: &otlppb.Status{Code: otlppb.Status_STATUS_CODE_ERROR},
-				events: []*otlppb.Span_Event{
+				status: &otlp.Status{Code: otlp.STATUS_CODE_ERROR},
+				events: []*otlp.Span_Event{
 					{
 						Name: "exception",
-						Attributes: []*otlppb.KeyValue{
-							{Key: "exception.message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "Out of memory"}}},
-							{Key: "exception.type", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "mem"}}},
-							{Key: "exception.stacktrace", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "1/2/3"}}},
+						Attributes: []*otlp.KeyValue{
+							{Key: "exception.message", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "Out of memory"}}},
+							{Key: "exception.type", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "mem"}}},
+							{Key: "exception.stacktrace", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "1/2/3"}}},
 						},
 					},
 				},
@@ -264,12 +264,12 @@ func TestOTLPHelpers(t *testing.T) {
 				},
 			},
 			{
-				status: &otlppb.Status{Code: otlppb.Status_STATUS_CODE_ERROR},
-				events: []*otlppb.Span_Event{
+				status: &otlp.Status{Code: otlp.STATUS_CODE_ERROR},
+				events: []*otlp.Span_Event{
 					{
 						Name: "exception",
-						Attributes: []*otlppb.KeyValue{
-							{Key: "exception.message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "Out of memory"}}},
+						Attributes: []*otlp.KeyValue{
+							{Key: "exception.message", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "Out of memory"}}},
 						},
 					},
 				},
@@ -279,12 +279,12 @@ func TestOTLPHelpers(t *testing.T) {
 				},
 			},
 			{
-				status: &otlppb.Status{Code: otlppb.Status_STATUS_CODE_ERROR},
-				events: []*otlppb.Span_Event{
+				status: &otlp.Status{Code: otlp.STATUS_CODE_ERROR},
+				events: []*otlp.Span_Event{
 					{
 						Name: "EXCEPTION",
-						Attributes: []*otlppb.KeyValue{
-							{Key: "exception.message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "Out of memory"}}},
+						Attributes: []*otlp.KeyValue{
+							{Key: "exception.message", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "Out of memory"}}},
 						},
 					},
 				},
@@ -294,34 +294,34 @@ func TestOTLPHelpers(t *testing.T) {
 				},
 			},
 			{
-				status: &otlppb.Status{Code: otlppb.Status_STATUS_CODE_ERROR},
-				events: []*otlppb.Span_Event{
+				status: &otlp.Status{Code: otlp.STATUS_CODE_ERROR},
+				events: []*otlp.Span_Event{
 					{
 						Name: "OTher",
-						Attributes: []*otlppb.KeyValue{
-							{Key: "exception.message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "Out of memory"}}},
+						Attributes: []*otlp.KeyValue{
+							{Key: "exception.message", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "Out of memory"}}},
 						},
 					},
 				},
 				out: pb.Span{Error: 1},
 			},
 			{
-				status: &otlppb.Status{Code: otlppb.Status_STATUS_CODE_ERROR},
+				status: &otlp.Status{Code: otlp.STATUS_CODE_ERROR},
 				out:    pb.Span{Error: 1},
 			},
 			{
-				status: &otlppb.Status{Code: otlppb.Status_STATUS_CODE_OK},
+				status: &otlp.Status{Code: otlp.STATUS_CODE_OK},
 				out:    pb.Span{Error: 0},
 			},
 			{
-				status: &otlppb.Status{Code: otlppb.Status_STATUS_CODE_OK},
-				events: []*otlppb.Span_Event{
+				status: &otlp.Status{Code: otlp.STATUS_CODE_OK},
+				events: []*otlp.Span_Event{
 					{
 						Name: "exception",
-						Attributes: []*otlppb.KeyValue{
-							{Key: "exception.message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "Out of memory"}}},
-							{Key: "exception.type", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "mem"}}},
-							{Key: "exception.stacktrace", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "1/2/3"}}},
+						Attributes: []*otlp.KeyValue{
+							{Key: "exception.message", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "Out of memory"}}},
+							{Key: "exception.type", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "mem"}}},
+							{Key: "exception.stacktrace", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "1/2/3"}}},
 						},
 					},
 				},
@@ -379,47 +379,47 @@ func TestOTLPHelpers(t *testing.T) {
 
 	t.Run("spanKind2Type", func(t *testing.T) {
 		for _, tt := range []struct {
-			kind otlppb.Span_SpanKind
+			kind otlp.Span_SpanKind
 			meta map[string]string
 			out  string
 		}{
 			{
-				kind: otlppb.Span_SPAN_KIND_SERVER,
+				kind: otlp.SPAN_KIND_SERVER,
 				out:  "web",
 			},
 			{
-				kind: otlppb.Span_SPAN_KIND_CLIENT,
+				kind: otlp.SPAN_KIND_CLIENT,
 				out:  "http",
 			},
 			{
-				kind: otlppb.Span_SPAN_KIND_CLIENT,
+				kind: otlp.SPAN_KIND_CLIENT,
 				meta: map[string]string{"db.system": "redis"},
 				out:  "cache",
 			},
 			{
-				kind: otlppb.Span_SPAN_KIND_CLIENT,
+				kind: otlp.SPAN_KIND_CLIENT,
 				meta: map[string]string{"db.system": "memcached"},
 				out:  "cache",
 			},
 			{
-				kind: otlppb.Span_SPAN_KIND_CLIENT,
+				kind: otlp.SPAN_KIND_CLIENT,
 				meta: map[string]string{"db.system": "other"},
 				out:  "db",
 			},
 			{
-				kind: otlppb.Span_SPAN_KIND_PRODUCER,
+				kind: otlp.SPAN_KIND_PRODUCER,
 				out:  "custom",
 			},
 			{
-				kind: otlppb.Span_SPAN_KIND_CONSUMER,
+				kind: otlp.SPAN_KIND_CONSUMER,
 				out:  "custom",
 			},
 			{
-				kind: otlppb.Span_SPAN_KIND_INTERNAL,
+				kind: otlp.SPAN_KIND_INTERNAL,
 				out:  "custom",
 			},
 			{
-				kind: otlppb.Span_SPAN_KIND_UNSPECIFIED,
+				kind: otlp.SPAN_KIND_UNSPECIFIED,
 				out:  "custom",
 			},
 		} {
@@ -442,8 +442,8 @@ func TestOTLPConvertSpan(t *testing.T) {
 	now := uint64(time.Now().UnixNano())
 	for i, tt := range []struct {
 		rattr map[string]string
-		lib   *otlppb.InstrumentationLibrary
-		in    *otlppb.Span
+		lib   *otlp.InstrumentationLibrary
+		in    *otlp.Span
 		out   *pb.Span
 	}{
 		{
@@ -452,7 +452,7 @@ func TestOTLPConvertSpan(t *testing.T) {
 				"service.version": "v1.2.3",
 				"env":             "staging",
 			},
-			lib: &otlppb.InstrumentationLibrary{
+			lib: &otlp.InstrumentationLibrary{
 				Name:    "ddtracer",
 				Version: "v2",
 			},
@@ -492,46 +492,46 @@ func TestOTLPConvertSpan(t *testing.T) {
 			rattr: map[string]string{
 				"service.version": "v1.2.3",
 			},
-			lib: &otlppb.InstrumentationLibrary{
+			lib: &otlp.InstrumentationLibrary{
 				Name:    "ddtracer",
 				Version: "v2",
 			},
-			in: &otlppb.Span{
+			in: &otlp.Span{
 				TraceId:           otlpTestID128,
 				SpanId:            otlpTestID128,
 				TraceState:        "state",
 				ParentSpanId:      []byte{0},
 				Name:              "/path",
-				Kind:              otlppb.Span_SPAN_KIND_SERVER,
+				Kind:              otlp.SPAN_KIND_SERVER,
 				StartTimeUnixNano: now,
 				EndTimeUnixNano:   now + 200000000,
-				Attributes: []*otlppb.KeyValue{
-					{Key: "name", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "john"}}},
-					{Key: "peer.service", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "userbase"}}},
-					{Key: "deployment.environment", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "prod"}}},
-					{Key: "http.method", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "GET"}}},
-					{Key: "http.route", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "/path"}}},
-					{Key: "name", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_DoubleValue{DoubleValue: 1.2}}},
-					{Key: "count", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_IntValue{IntValue: 2}}},
+				Attributes: []*otlp.KeyValue{
+					{Key: "name", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "john"}}},
+					{Key: "peer.service", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "userbase"}}},
+					{Key: "deployment.environment", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "prod"}}},
+					{Key: "http.method", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "GET"}}},
+					{Key: "http.route", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "/path"}}},
+					{Key: "name", Value: &otlp.AnyValue{Value: &otlp.AnyValue_DoubleValue{DoubleValue: 1.2}}},
+					{Key: "count", Value: &otlp.AnyValue{Value: &otlp.AnyValue_IntValue{IntValue: 2}}},
 				},
 				DroppedAttributesCount: 0,
-				Events: []*otlppb.Span_Event{
+				Events: []*otlp.Span_Event{
 					{
 						TimeUnixNano: 123,
 						Name:         "boom",
-						Attributes: []*otlppb.KeyValue{
-							{Key: "message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "Out of memory"}}},
-							{Key: "accuracy", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_DoubleValue{DoubleValue: 2.4}}},
+						Attributes: []*otlp.KeyValue{
+							{Key: "message", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "Out of memory"}}},
+							{Key: "accuracy", Value: &otlp.AnyValue{Value: &otlp.AnyValue_DoubleValue{DoubleValue: 2.4}}},
 						},
 						DroppedAttributesCount: 2,
 					},
 					{
 						TimeUnixNano: 456,
 						Name:         "exception",
-						Attributes: []*otlppb.KeyValue{
-							{Key: "exception.message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "Out of memory"}}},
-							{Key: "exception.type", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "mem"}}},
-							{Key: "exception.stacktrace", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "1/2/3"}}},
+						Attributes: []*otlp.KeyValue{
+							{Key: "exception.message", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "Out of memory"}}},
+							{Key: "exception.type", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "mem"}}},
+							{Key: "exception.stacktrace", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "1/2/3"}}},
 						},
 						DroppedAttributesCount: 2,
 					},
@@ -539,9 +539,9 @@ func TestOTLPConvertSpan(t *testing.T) {
 				DroppedEventsCount: 0,
 				Links:              nil,
 				DroppedLinksCount:  0,
-				Status: &otlppb.Status{
+				Status: &otlp.Status{
 					Message: "Error",
-					Code:    otlppb.Status_STATUS_CODE_ERROR,
+					Code:    otlp.STATUS_CODE_ERROR,
 				},
 			},
 			out: &pb.Span{
@@ -584,44 +584,44 @@ func TestOTLPConvertSpan(t *testing.T) {
 				"service.version": "v1.2.3",
 				"env":             "staging",
 			},
-			lib: &otlppb.InstrumentationLibrary{
+			lib: &otlp.InstrumentationLibrary{
 				Name:    "ddtracer",
 				Version: "v2",
 			},
-			in: &otlppb.Span{
+			in: &otlp.Span{
 				TraceId:           otlpTestID128,
 				SpanId:            otlpTestID128,
 				TraceState:        "state",
 				ParentSpanId:      []byte{0},
 				Name:              "/path",
-				Kind:              otlppb.Span_SPAN_KIND_SERVER,
+				Kind:              otlp.SPAN_KIND_SERVER,
 				StartTimeUnixNano: now,
 				EndTimeUnixNano:   now + 200000000,
-				Attributes: []*otlppb.KeyValue{
-					{Key: "name", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "john"}}},
-					{Key: "http.method", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "GET"}}},
-					{Key: "http.route", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "/path"}}},
-					{Key: "name", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_DoubleValue{DoubleValue: 1.2}}},
-					{Key: "count", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_IntValue{IntValue: 2}}},
+				Attributes: []*otlp.KeyValue{
+					{Key: "name", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "john"}}},
+					{Key: "http.method", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "GET"}}},
+					{Key: "http.route", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "/path"}}},
+					{Key: "name", Value: &otlp.AnyValue{Value: &otlp.AnyValue_DoubleValue{DoubleValue: 1.2}}},
+					{Key: "count", Value: &otlp.AnyValue{Value: &otlp.AnyValue_IntValue{IntValue: 2}}},
 				},
 				DroppedAttributesCount: 0,
-				Events: []*otlppb.Span_Event{
+				Events: []*otlp.Span_Event{
 					{
 						TimeUnixNano: 123,
 						Name:         "boom",
-						Attributes: []*otlppb.KeyValue{
-							{Key: "message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "Out of memory"}}},
-							{Key: "accuracy", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_DoubleValue{DoubleValue: 2.4}}},
+						Attributes: []*otlp.KeyValue{
+							{Key: "message", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "Out of memory"}}},
+							{Key: "accuracy", Value: &otlp.AnyValue{Value: &otlp.AnyValue_DoubleValue{DoubleValue: 2.4}}},
 						},
 						DroppedAttributesCount: 2,
 					},
 					{
 						TimeUnixNano: 456,
 						Name:         "exception",
-						Attributes: []*otlppb.KeyValue{
-							{Key: "exception.message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "Out of memory"}}},
-							{Key: "exception.type", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "mem"}}},
-							{Key: "exception.stacktrace", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "1/2/3"}}},
+						Attributes: []*otlp.KeyValue{
+							{Key: "exception.message", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "Out of memory"}}},
+							{Key: "exception.type", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "mem"}}},
+							{Key: "exception.stacktrace", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "1/2/3"}}},
 						},
 						DroppedAttributesCount: 2,
 					},
@@ -629,9 +629,9 @@ func TestOTLPConvertSpan(t *testing.T) {
 				DroppedEventsCount: 0,
 				Links:              nil,
 				DroppedLinksCount:  0,
-				Status: &otlppb.Status{
+				Status: &otlp.Status{
 					Message: "Error",
-					Code:    otlppb.Status_STATUS_CODE_ERROR,
+					Code:    otlp.STATUS_CODE_ERROR,
 				},
 			},
 			out: &pb.Span{
@@ -675,14 +675,14 @@ func TestOTLPConvertSpan(t *testing.T) {
 
 func TestMarshalEvents(t *testing.T) {
 	for _, tt := range []struct {
-		in  []*otlppb.Span_Event
+		in  []*otlp.Span_Event
 		out string
 	}{
 		{
-			in: []*otlppb.Span_Event{
+			in: []*otlp.Span_Event{
 				{
-					Attributes: []*otlppb.KeyValue{
-						{Key: "message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "OOM"}}},
+					Attributes: []*otlp.KeyValue{
+						{Key: "message", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "OOM"}}},
 					},
 					DroppedAttributesCount: 3,
 				},
@@ -692,18 +692,18 @@ func TestMarshalEvents(t *testing.T) {
 					"dropped_attributes_count":3
 				}]`,
 		}, {
-			in: []*otlppb.Span_Event{
+			in: []*otlp.Span_Event{
 				{
 					Name: "boom",
 				},
 			},
 			out: `[{"name":"boom"}]`,
 		}, {
-			in: []*otlppb.Span_Event{
+			in: []*otlp.Span_Event{
 				{
 					Name: "boom",
-					Attributes: []*otlppb.KeyValue{
-						{Key: "message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "OOM"}}},
+					Attributes: []*otlp.KeyValue{
+						{Key: "message", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "OOM"}}},
 					},
 					DroppedAttributesCount: 3,
 				},
@@ -714,12 +714,12 @@ func TestMarshalEvents(t *testing.T) {
 					"dropped_attributes_count":3
 				}]`,
 		}, {
-			in: []*otlppb.Span_Event{
+			in: []*otlp.Span_Event{
 				{
 					TimeUnixNano: 123,
 					Name:         "boom",
-					Attributes: []*otlppb.KeyValue{
-						{Key: "message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "OOM"}}},
+					Attributes: []*otlp.KeyValue{
+						{Key: "message", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "OOM"}}},
 					},
 					DroppedAttributesCount: 2,
 				},
@@ -731,19 +731,19 @@ func TestMarshalEvents(t *testing.T) {
 					"dropped_attributes_count":2
 				}]`,
 		}, {
-			in: []*otlppb.Span_Event{
+			in: []*otlp.Span_Event{
 				{
 					DroppedAttributesCount: 2,
 				},
 			},
 			out: `[{"dropped_attributes_count":2}]`,
 		}, {
-			in: []*otlppb.Span_Event{
+			in: []*otlp.Span_Event{
 				{
 					TimeUnixNano: 123,
-					Attributes: []*otlppb.KeyValue{
-						{Key: "message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "OOM"}}},
-						{Key: "accuracy", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_DoubleValue{DoubleValue: 2.4}}},
+					Attributes: []*otlp.KeyValue{
+						{Key: "message", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "OOM"}}},
+						{Key: "accuracy", Value: &otlp.AnyValue{Value: &otlp.AnyValue_DoubleValue{DoubleValue: 2.4}}},
 					},
 					DroppedAttributesCount: 2,
 				},
@@ -757,13 +757,13 @@ func TestMarshalEvents(t *testing.T) {
 					"dropped_attributes_count":2
 				}]`,
 		}, {
-			in: []*otlppb.Span_Event{
+			in: []*otlp.Span_Event{
 				{
 					TimeUnixNano: 123,
 					Name:         "boom",
-					Attributes: []*otlppb.KeyValue{
-						{Key: "message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "OOM"}}},
-						{Key: "accuracy", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_DoubleValue{DoubleValue: 2.4}}},
+					Attributes: []*otlp.KeyValue{
+						{Key: "message", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "OOM"}}},
+						{Key: "accuracy", Value: &otlp.AnyValue{Value: &otlp.AnyValue_DoubleValue{DoubleValue: 2.4}}},
 					},
 				},
 			},
@@ -776,7 +776,7 @@ func TestMarshalEvents(t *testing.T) {
 					}
 				}]`,
 		}, {
-			in: []*otlppb.Span_Event{
+			in: []*otlp.Span_Event{
 				{
 					TimeUnixNano:           123,
 					Name:                   "boom",
@@ -789,13 +789,13 @@ func TestMarshalEvents(t *testing.T) {
 					"dropped_attributes_count":2
 				}]`,
 		}, {
-			in: []*otlppb.Span_Event{
+			in: []*otlp.Span_Event{
 				{
 					TimeUnixNano: 123,
 					Name:         "boom",
-					Attributes: []*otlppb.KeyValue{
-						{Key: "message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "OOM"}}},
-						{Key: "accuracy", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_DoubleValue{DoubleValue: 2.4}}},
+					Attributes: []*otlp.KeyValue{
+						{Key: "message", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "OOM"}}},
+						{Key: "accuracy", Value: &otlp.AnyValue{Value: &otlp.AnyValue_DoubleValue{DoubleValue: 2.4}}},
 					},
 					DroppedAttributesCount: 2,
 				},
@@ -810,23 +810,23 @@ func TestMarshalEvents(t *testing.T) {
 					"dropped_attributes_count":2
 				}]`,
 		}, {
-			in: []*otlppb.Span_Event{
+			in: []*otlp.Span_Event{
 				{
 					TimeUnixNano: 123,
 					Name:         "boom",
-					Attributes: []*otlppb.KeyValue{
-						{Key: "message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "OOM"}}},
-						{Key: "accuracy", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_DoubleValue{DoubleValue: 2.4}}},
+					Attributes: []*otlp.KeyValue{
+						{Key: "message", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "OOM"}}},
+						{Key: "accuracy", Value: &otlp.AnyValue{Value: &otlp.AnyValue_DoubleValue{DoubleValue: 2.4}}},
 					},
 					DroppedAttributesCount: 2,
 				},
 				{
 					TimeUnixNano: 456,
 					Name:         "exception",
-					Attributes: []*otlppb.KeyValue{
-						{Key: "exception.message", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "OOM"}}},
-						{Key: "exception.type", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "mem"}}},
-						{Key: "exception.stacktrace", Value: &otlppb.AnyValue{Value: &otlppb.AnyValue_StringValue{StringValue: "1/2/3"}}},
+					Attributes: []*otlp.KeyValue{
+						{Key: "exception.message", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "OOM"}}},
+						{Key: "exception.type", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "mem"}}},
+						{Key: "exception.stacktrace", Value: &otlp.AnyValue{Value: &otlp.AnyValue_StringValue{StringValue: "1/2/3"}}},
 					},
 					DroppedAttributesCount: 2,
 				},
