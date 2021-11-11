@@ -1,10 +1,10 @@
 syntax = "proto3";
 
-package pb;
+package datadog.trace;
 
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+import "gogo/protobuf/gogoproto/gogo.proto";
 
-// TargetTPS contains the targeted traces per second the agent should try to sample for a particular service and env 
+// TargetTPS contains the targeted traces per second the agent should try to sample for a particular service and env
 message TargetTPS {
     string service = 1;
     string env = 2;

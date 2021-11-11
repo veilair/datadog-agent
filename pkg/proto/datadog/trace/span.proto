@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package pb;
+package datadog.trace;
 
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+import "gogo/protobuf/gogoproto/gogo.proto";
 
 message Span {
     string service = 1 [(gogoproto.jsontag) = "service", (gogoproto.moretags) = "msg:\"service\""];

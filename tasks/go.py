@@ -405,10 +405,29 @@ def generate_licenses(ctx, filename='LICENSE-3rdparty.csv', verbose=False):
 def generate_protobuf(ctx):
     """
     Generates protobuf defintions in pkg/proto
+
+    We must build the packages one at a time due to protoc-gen-go limitations
     """
+
+    PROTO_PACKAGES = {
+        'model/v1': False,
+        'config': False,
+        'api/v1': True,
+        'trace': False,
+        'trace/otlp': False,
+        'process': False,
+    }
+
+    # maybe put this in a separate function
+    PACKAGE_PLUGINS = {
+        'trace': '--gogoslick_out=',
+        'trace/otlp': '--gogoslick_out=',
+    }
+
     base = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.abspath(os.path.join(base, ".."))
     proto_root = os.path.join(repo_root, "pkg", "proto")
+    protodep_root = os.path.join(proto_root, "protodep")
 
     print("nuking old definitions at: {}".format(proto_root))
     file_list = glob.glob(os.path.join(proto_root, "pbgo", "*.go"))
@@ -422,25 +441,37 @@ def generate_protobuf(ctx):
         # protobuf defs
         print("generating protobuf code from: {}".format(proto_root))
 
-        files = []
-        for path in Path(os.path.join(proto_root, "datadog")).rglob('*.proto'):
-            files.append(path.as_posix())
+        for pkg, grpc_gateway in PROTO_PACKAGES.items():
+            files = []
+            pkg_root = os.path.join(proto_root, "datadog", pkg).rstrip(os.sep)
+            pkg_root_level = pkg_root.count(os.sep)
+            for path in Path(pkg_root).rglob('*.proto'):
+                if path.as_posix().count(os.sep) == pkg_root_level + 1:
+                    files.append(path.as_posix())
 
-        ctx.run(
-            "protoc -I{include_path} --go_out=plugins=grpc:{out_path} {targets}".format(
-                include_path=proto_root,
-                out_path=repo_root,
-                targets=' '.join(files),
+            output_generator = "--go_out=plugins=grpc:"
+            if pkg in PACKAGE_PLUGINS:
+                output_generator = PACKAGE_PLUGINS[pkg]
+            ctx.run(
+                "protoc -I{include_path} -I{include_protodep} {output_generator}{out_path} {targets}".format(
+                    include_path=proto_root,
+                    include_protodep=protodep_root,
+                    output_generator=output_generator,
+                    out_path=repo_root,
+                    targets=' '.join(files),
+                )
             )
-        )
-        # grpc-gateway logic
-        ctx.run(
-            "protoc -I{include_path} --grpc-gateway_out=logtostderr=true:{out_path} {targets}".format(
-                include_path=proto_root,
-                out_path=repo_root,
-                targets=' '.join(files),
-            )
-        )
+
+            if grpc_gateway:
+                # grpc-gateway logic
+                ctx.run(
+                    "protoc -I{include_path} -I{include_protodep} --grpc-gateway_out=logtostderr=true:{out_path} {targets}".format(
+                        include_path=proto_root,
+                        include_protodep=protodep_root,
+                        out_path=repo_root,
+                        targets=' '.join(files),
+                    )
+                )
         # mockgen
         pbgo_dir = os.path.join(proto_root, "pbgo")
         mockgen_out = os.path.join(proto_root, "pbgo", "mocks")

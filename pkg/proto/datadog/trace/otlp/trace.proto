@@ -14,10 +14,10 @@
 
 syntax = "proto3";
 
-package otlppb;
+package datadog.trace.otlp;
 
-import "resource.proto";
-import "common.proto";
+import "datadog/trace/otlp/resource.proto";
+import "datadog/trace/otlp/common.proto";
 
 // A collection of InstrumentationLibrarySpans from a Resource.
 message ResourceSpans {

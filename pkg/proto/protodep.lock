@@ -29,3 +29,10 @@ proto_outdir = "./protodep"
   path = "google/protobuf"
   ignores = ["./compiler", "unittest", "test_messages_", "any_test", "map_lite_unittest", "map_proto2_unittest", "util", "map_unittest"]
   protocol = ""
+
+[[dependencies]]
+  target = "github.com/gogo/protobuf/gogoproto"
+  revision = "b03c65ea87cdc3521ede29f62fe3ce239267c1bc"
+  branch = ""
+  path = "gogo/protobuf/gogoproto"
+  protocol = ""

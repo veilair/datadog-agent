@@ -14,9 +14,9 @@
 
 syntax = "proto3";
 
-package otlppb;
+package datadog.trace.otlp;
 
-import "trace.proto";
+import "datadog/trace/otlp/trace.proto";
 
 // Service that can be used to push spans between one Application instrumented with
 // OpenTelemetry and an collector, or between an collector and a central collector (in this

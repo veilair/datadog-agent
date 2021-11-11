@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package pb;
+package datadog.trace;
 
-import "span.proto";
+import "datadog/trace/span.proto";
 
 message APITrace {
 	uint64 traceID = 1;
