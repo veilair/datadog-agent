@@ -36,3 +36,10 @@ proto_outdir = "./protodep"
   branch = ""
   path = "gogo/protobuf/gogoproto"
   protocol = ""
+
+[[dependencies]]
+  target = "github.com/DataDog/agent-payload"
+  revision = "8270b30bcf2a1ff78e283f11735e61137710ce7a"
+  branch = ""
+  path = "DataDog/agent-payload"
+  protocol = ""

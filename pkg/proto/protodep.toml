@@ -26,3 +26,8 @@ proto_outdir = "./protodep"
   target = "github.com/gogo/protobuf/gogoproto"
   revision = "v1.3.2"
   path = "gogo/protobuf/gogoproto"
+
+[[dependencies]]
+  target = "github.com/DataDog/agent-payload"
+  revision = "v5.0.2"
+  path = "DataDog/agent-payload"
