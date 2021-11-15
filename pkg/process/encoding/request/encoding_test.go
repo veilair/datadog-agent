@@ -3,10 +3,9 @@ package request
 import (
 	"testing"
 
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
 )
 
 func TestSerialization(t *testing.T) {

@@ -16,7 +16,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"go.etcd.io/bbolt"
 
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/security/log"
 )
 

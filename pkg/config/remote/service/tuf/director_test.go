@@ -16,7 +16,7 @@ import (
 	"github.com/theupdateframework/go-tuf/data"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/store"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 func newTestStore(t *testing.T) *store.Store {

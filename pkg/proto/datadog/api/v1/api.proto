@@ -6,7 +6,7 @@ import "datadog/model/v1/model.proto";
 import "datadog/config/config.proto";
 import "google/api/annotations.proto";
 
-option go_package = "pkg/proto/pbgo"; // golang
+option go_package = "pkg/proto/pbgo/core"; // golang
 
 
 // The greeting service definition.

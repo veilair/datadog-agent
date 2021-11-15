@@ -1,3 +1,4 @@
+//go:build linux || windows
 // +build linux windows
 
 package config
@@ -18,8 +19,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo"
-	mocks "github.com/DataDog/datadog-agent/pkg/proto/pbgo/mocks"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	mocks "github.com/DataDog/datadog-agent/pkg/proto/pbgo/mocks/core"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/providers"
 	providerMocks "github.com/DataDog/datadog-agent/pkg/util/containers/providers/mock"
 	"github.com/golang/mock/gomock"

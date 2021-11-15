@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
 // +build linux
 
 package module
@@ -27,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/service/tuf"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	core "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	sapi "github.com/DataDog/datadog-agent/pkg/security/api"
 	sconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"

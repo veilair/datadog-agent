@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo"
+	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config/features"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -48,7 +48,7 @@ func newRemoteRates() *RemoteRates {
 		exit:     make(chan struct{}),
 		stopped:  make(chan struct{}),
 	}
-	close, err := service.NewGRPCSubscriber(pbgo.Product_APM_SAMPLING, remoteRates.loadNewConfig)
+	close, err := service.NewGRPCSubscriber(pbcore.Product_APM_SAMPLING, remoteRates.loadNewConfig)
 	if err != nil {
 		log.Errorf("Error when subscribing to remote config management %v", err)
 		return nil
@@ -57,7 +57,7 @@ func newRemoteRates() *RemoteRates {
 	return remoteRates
 }
 
-func (r *RemoteRates) loadNewConfig(new *pbgo.ConfigResponse) error {
+func (r *RemoteRates) loadNewConfig(new *pbcore.ConfigResponse) error {
 	log.Debugf("fetched config version %d from remote config management", new.ConfigDelegatedTargetVersion)
 	tpsTargets := make(map[Signature]float64, len(r.tpsTargets))
 	for _, targetFile := range new.TargetFiles {
