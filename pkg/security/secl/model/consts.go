@@ -271,6 +271,45 @@ var (
 		"CAP_WAKE_ALARM":         1 << unix.CAP_WAKE_ALARM,
 	}
 
+	ptraceConstants = map[string]uint32{
+		"PTRACE_TRACEME":    unix.PTRACE_TRACEME,
+		"PTRACE_PEEKTEXT":   unix.PTRACE_PEEKTEXT,
+		"PTRACE_PEEKDATA":   unix.PTRACE_PEEKDATA,
+		"PTRACE_PEEKUSR":    unix.PTRACE_PEEKUSR,
+		"PTRACE_POKETEXT":   unix.PTRACE_POKETEXT,
+		"PTRACE_POKEDATA":   unix.PTRACE_POKEDATA,
+		"PTRACE_POKEUSR":    unix.PTRACE_POKEUSR,
+		"PTRACE_CONT":       unix.PTRACE_CONT,
+		"PTRACE_KILL":       unix.PTRACE_KILL,
+		"PTRACE_SINGLESTEP": unix.PTRACE_SINGLESTEP,
+		"PTRACE_ATTACH":     unix.PTRACE_ATTACH,
+		"PTRACE_DETACH":     unix.PTRACE_DETACH,
+		"PTRACE_SYSCALL":    unix.PTRACE_SYSCALL,
+
+		"PTRACE_SETOPTIONS":           unix.PTRACE_SETOPTIONS,
+		"PTRACE_GETEVENTMSG":          unix.PTRACE_GETEVENTMSG,
+		"PTRACE_GETSIGINFO":           unix.PTRACE_GETSIGINFO,
+		"PTRACE_SETSIGINFO":           unix.PTRACE_SETSIGINFO,
+		"PTRACE_GETREGSET":            unix.PTRACE_GETREGSET,
+		"PTRACE_SETREGSET":            unix.PTRACE_SETREGSET,
+		"PTRACE_SEIZE":                unix.PTRACE_SEIZE,
+		"PTRACE_INTERRUPT":            unix.PTRACE_INTERRUPT,
+		"PTRACE_LISTEN":               unix.PTRACE_LISTEN,
+		"PTRACE_PEEKSIGINFO":          unix.PTRACE_PEEKSIGINFO,
+		"PTRACE_GETSIGMASK":           unix.PTRACE_GETSIGMASK,
+		"PTRACE_SETSIGMASK":           unix.PTRACE_SETSIGMASK,
+		"PTRACE_SECCOMP_GET_FILTER":   unix.PTRACE_SECCOMP_GET_FILTER,
+		"PTRACE_SECCOMP_GET_METADATA": unix.PTRACE_SECCOMP_GET_METADATA,
+		"PTRACE_GET_SYSCALL_INFO":     unix.PTRACE_GET_SYSCALL_INFO,
+	}
+
+	vmConstants = map[string]int{
+		"VM_READ":   1,
+		"VM_WRITE":  2,
+		"VM_EXEC":   4,
+		"VM_SHARED": 8,
+	}
+
 	// BPFCmdConstants is the list of BPF commands
 	BPFCmdConstants = map[string]BPFCmd{
 		"BPF_MAP_CREATE":                  BpfMapCreateCmd,
@@ -616,6 +655,8 @@ var (
 	bpfMapTypeStrings         = map[uint32]string{}
 	bpfProgramTypeStrings     = map[uint32]string{}
 	bpfAttachTypeStrings      = map[uint32]string{}
+	ptraceFlagsStrings        = map[uint32]string{}
+	vmFlagsStrings            = map[int]string{}
 )
 
 // File flags
@@ -698,6 +739,30 @@ func initBPFAttachTypeConstants() {
 	}
 }
 
+func initPtraceConstants() {
+	for k, v := range ptraceArchConstants {
+		ptraceConstants[k] = v
+	}
+
+	for k, v := range ptraceConstants {
+		SECLConstants[k] = &eval.IntEvaluator{Value: int(v)}
+	}
+
+	for k, v := range ptraceConstants {
+		ptraceFlagsStrings[v] = k
+	}
+}
+
+func initVMConstants() {
+	for k, v := range vmConstants {
+		SECLConstants[k] = &eval.IntEvaluator{Value: v}
+	}
+
+	for k, v := range vmConstants {
+		vmFlagsStrings[v] = k
+	}
+}
+
 func initConstants() {
 	initErrorConstants()
 	initOpenConstants()
@@ -709,6 +774,8 @@ func initConstants() {
 	initBPFMapTypeConstants()
 	initBPFProgramTypeConstants()
 	initBPFAttachTypeConstants()
+	initPtraceConstants()
+	initVMConstants()
 }
 
 func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
@@ -1491,3 +1558,22 @@ const (
 	// BpfSkSkbVerdict attach type
 	BpfSkSkbVerdict
 )
+
+// PTraceRequest represents a ptrace request value
+type PTraceRequest uint32
+
+func (f PTraceRequest) String() string {
+	for val, str := range ptraceFlagsStrings {
+		if val == uint32(f) {
+			return str
+		}
+	}
+	return fmt.Sprintf("%d", f)
+}
+
+// VMProtection represents a virtual memory protection bitmask value
+type VMProtection int
+
+func (vmp VMProtection) String() string {
+	return bitmaskToString(int(vmp), vmFlagsStrings)
+}

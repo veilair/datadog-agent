@@ -22,7 +22,7 @@ var SyscallMonitorSelectors = []manager.ProbesSelector{
 // SelectorsPerEventType is the list of probes that should be activated for each event
 var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 
-	// The following events will always be activated, regardless of the rules loaded
+	// The following probes will always be activated, regardless of the loaded rules
 	"*": {
 		// Exec probes
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
@@ -243,7 +243,7 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		}},
 	},
 
-	// List of probes to activate to capture chmod events
+	// List of probes required to capture chmod events
 	"chmod": {
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_inode_setattr", EBPFFuncName: "kprobe_security_inode_setattr"}},
@@ -260,7 +260,7 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		},
 	},
 
-	// List of probes to activate to capture chown events
+	// List of probes required to capture chown events
 	"chown": {
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_inode_setattr", EBPFFuncName: "kprobe_security_inode_setattr"}},
@@ -293,7 +293,7 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		},
 	},
 
-	// List of probes to activate to capture mkdir events
+	// List of probes required to capture mkdir events
 	"mkdir": {
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/vfs_mkdir", EBPFFuncName: "kprobe_vfs_mkdir"}},
@@ -307,7 +307,7 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		},
 	},
 
-	// List of probes to activate to capture removexattr events
+	// List of probes required to capture removexattr events
 	"removexattr": {
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/vfs_removexattr", EBPFFuncName: "kprobe_vfs_removexattr"}},
@@ -328,7 +328,7 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		},
 	},
 
-	// List of probes to activate to capture setxattr events
+	// List of probes required to capture setxattr events
 	"setxattr": {
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/vfs_setxattr", EBPFFuncName: "kprobe_vfs_setxattr"}},
@@ -349,7 +349,7 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		},
 	},
 
-	// List of probes to activate to capture utimes events
+	// List of probes required to capture utimes events
 	"utimes": {
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_inode_setattr", EBPFFuncName: "kprobe_security_inode_setattr"}},
@@ -381,7 +381,7 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		},
 	},
 
-	// List of probes to activate to capture bpf events
+	// List of probes required to capture bpf events
 	"bpf": {
 		&manager.BestEffort{Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_bpf_map", EBPFFuncName: "kprobe_security_bpf_map"}},
@@ -390,6 +390,30 @@ var SelectorsPerEventType = map[eval.EventType][]manager.ProbesSelector{
 		}},
 		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
 			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "bpf"}, EntryAndExit),
+		},
+	},
+
+	// List of probes required to capture ptrace events
+	"ptrace": {
+		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "ptrace"}, EntryAndExit),
+		},
+	},
+
+	// List of probes required to capture mmap events
+	"mmap": {
+		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "mmap"}, EntryAndExit),
+		},
+	},
+
+	// List of probes required to capture mprotect events
+	"mprotect": {
+		&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "kprobe/security_file_mprotect", EBPFFuncName: "kprobe_security_file_mprotect"}},
+		}},
+		&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(
+			manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFSection: "mprotect"}, EntryAndExit),
 		},
 	},
 }
