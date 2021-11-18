@@ -213,6 +213,7 @@ enum event_type
     EVENT_MOUNT_RELEASED,
     EVENT_SELINUX,
     EVENT_BPF,
+    EVENT_DNS,
     EVENT_MAX, // has to be the last one
 };
 
@@ -362,25 +363,47 @@ struct bpf_map_def SEC("maps/events_stats") events_stats = {
     .namespace = "",
 };
 
-#define send_event(ctx, event_type, kernel_event)                                                                      \
-    kernel_event.event.type = event_type;                                                                              \
-    kernel_event.event.cpu = bpf_get_smp_processor_id();                                                               \
-    kernel_event.event.timestamp = bpf_ktime_get_ns();                                                                 \
+#define send_event_with_size_ptr(ctx, event_type, kernel_event, kernel_event_size)                                     \
+    kernel_event->event.type = event_type;                                                                             \
+    kernel_event->event.cpu = bpf_get_smp_processor_id();                                                              \
+    kernel_event->event.timestamp = bpf_ktime_get_ns();                                                                \
                                                                                                                        \
-    u64 size = sizeof(kernel_event);                                                                                   \
-    int perf_ret = bpf_perf_event_output(ctx, &events, kernel_event.event.cpu, &kernel_event, size);                   \
+    int perf_ret = bpf_perf_event_output(ctx, &events, kernel_event->event.cpu, kernel_event, kernel_event_size);      \
                                                                                                                        \
-    if (kernel_event.event.type < EVENT_MAX) {                                                                         \
-        struct perf_map_stats_t *stats = bpf_map_lookup_elem(&events_stats, &kernel_event.event.type);                 \
+    if (kernel_event->event.type < EVENT_MAX) {                                                                        \
+        struct perf_map_stats_t *stats = bpf_map_lookup_elem(&events_stats, &kernel_event->event.type);                \
         if (stats != NULL) {                                                                                           \
             if (!perf_ret) {                                                                                           \
-                __sync_fetch_and_add(&stats->bytes, size + 4);                                                         \
+                __sync_fetch_and_add(&stats->bytes, kernel_event_size + 4);                                            \
                 __sync_fetch_and_add(&stats->count, 1);                                                                \
             } else {                                                                                                   \
                 __sync_fetch_and_add(&stats->lost, 1);                                                                 \
             }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
+
+#define send_event_with_size(ctx, event_type, kernel_event, kernel_event_size)                                         \
+    kernel_event.event.type = event_type;                                                                              \
+    kernel_event.event.cpu = bpf_get_smp_processor_id();                                                               \
+    kernel_event.event.timestamp = bpf_ktime_get_ns();                                                                 \
+                                                                                                                       \
+    int perf_ret = bpf_perf_event_output(ctx, &events, kernel_event.event.cpu, &kernel_event, kernel_event_size);      \
+                                                                                                                       \
+    if (kernel_event.event.type < EVENT_MAX) {                                                                         \
+        struct perf_map_stats_t *stats = bpf_map_lookup_elem(&events_stats, &kernel_event.event.type);                 \
+        if (stats != NULL) {                                                                                           \
+            if (!perf_ret) {                                                                                           \
+                __sync_fetch_and_add(&stats->bytes, kernel_event_size + 4);                                            \
+                __sync_fetch_and_add(&stats->count, 1);                                                                \
+            } else {                                                                                                   \
+                __sync_fetch_and_add(&stats->lost, 1);                                                                 \
+            }                                                                                                          \
+        }                                                                                                              \
+    }                                                                                                                  \
+
+#define send_event(ctx, event_type, kernel_event)                                                                      \
+    u64 size = sizeof(kernel_event);                                                                                   \
+    send_event_with_size(ctx, event_type, kernel_event, size)                                                          \
 
 
 // implemented in the discarder.h file

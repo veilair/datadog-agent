@@ -144,6 +144,7 @@ type Event struct {
 
 	SELinux SELinuxEvent `field:"selinux" event:"selinux"` // [7.30] [Kernel] An SELinux operation was run
 	BPF     BPFEvent     `field:"bpf" event:"bpf"`         // [7.33] [Kernel] A BPF command was executed
+	DNS     DNSEvent     `field:"dns" event:"dns"`         // [7.34] [Kernel] A DNS request was sent
 
 	Mount            MountEvent            `field:"-"`
 	Umount           UmountEvent           `field:"-"`
@@ -597,4 +598,14 @@ type BPFProgram struct {
 	AttachType uint32   `field:"attach_type"`      // Attach type of the eBPF program
 	Helpers    []uint32 `field:"-,ResolveHelpers"` // eBPF helpers used by the eBPF program
 	Name       string   `field:"-"`                // Name of the eBPF program
+}
+
+// DNSEvent represents a DNS event
+type DNSEvent struct {
+	SyscallEvent
+
+	QDCount uint16 `field:"qdcount"` // qdcount field of the DNS request
+	QClass  uint16 `field:"qclass"`  // qclass field of the DNS request
+	QType   uint16 `field:"qtype"`   // qtype field of the DNS request
+	Name    string `field:"name"`    // name field of the DNS request
 }

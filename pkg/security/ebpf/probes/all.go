@@ -36,6 +36,7 @@ func AllProbes() []*manager.Probe {
 	allProbes = append(allProbes, getIoctlProbes()...)
 	allProbes = append(allProbes, getSELinuxProbes()...)
 	allProbes = append(allProbes, getBPFProbes()...)
+	allProbes = append(allProbes, getFlowProbes()...)
 
 	allProbes = append(allProbes,
 		// Syscall monitor
@@ -140,6 +141,7 @@ func AllTailRoutes(ERPCDentryResolutionEnabled bool) []manager.TailCallRoute {
 	routes = append(routes, getExecTailCallRoutes()...)
 	routes = append(routes, getDentryResolverTailCallRoutes(ERPCDentryResolutionEnabled)...)
 	routes = append(routes, getSysExitTailCallRoutes()...)
+	routes = append(routes, getTCTailCallRoutes()...)
 
 	return routes
 }
