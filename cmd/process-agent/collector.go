@@ -83,6 +83,8 @@ func NewCollector(cfg *config.AgentConfig) (Collector, error) {
 		}
 	}
 
+	log.Warnf("ENABLED CHECKS: %v", enabledChecks)
+
 	return NewCollectorWithChecks(cfg, enabledChecks), nil
 }
 

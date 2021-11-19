@@ -35,7 +35,11 @@ func (r *RTContainerCheck) RealTime() bool { return true }
 
 // Run runs the real-time container check getting container-level stats from the Cgroups and Docker APIs.
 func (r *RTContainerCheck) Run(cfg *config.AgentConfig, groupID int32) ([]model.MessageBody, error) {
+	log.Debugf("RUN CONTAINER RT CHECK")
+
 	ctrList, err := util.GetContainers()
+
+	log.Debugf("CONTAINERS LIST: %v", ctrList)
 
 	if err == containercollectors.ErrPermaFail || err == containercollectors.ErrNothingYet {
 		log.Trace("container collector was not detected, container check will not return any data")
@@ -119,7 +123,9 @@ func fmtContainerStats(
 			totalPct = calculateCtrPct(ctr.CPU.User+ctr.CPU.System, lastCtr.CPU.User+lastCtr.CPU.System, sys2, sys1, cpus, lastRun)
 		}
 
-		chunk = append(chunk, &model.ContainerStat{
+		log.Debugf("CPUS: %i, SYSTEM_USAGE: %i, PREVIOUS_SYSTEM_USAGE: %i, USER_PCT: %f, SYSTEM_PCT: %f, TOTAL_PCT: %f", cpus, sys2, sys1, userPct, systemPct, totalPct)
+
+		stats := model.ContainerStat{
 			Id:          ctr.ID,
 			UserPct:     userPct,
 			SystemPct:   systemPct,
@@ -139,7 +145,12 @@ func fmtContainerStats(
 			State:       model.ContainerState(model.ContainerState_value[ctr.State]),
 			Health:      model.ContainerHealth(model.ContainerHealth_value[ctr.Health]),
 			Started:     ctr.StartedAt,
-		})
+		}
+
+		chunk = append(chunk, &stats)
+
+		log.Warnf("CONTAINER STAT: %v", stats)
+
 		if len(chunk) == perChunk {
 			chunked[i] = chunk
 			chunk = make([]*model.ContainerStat, 0, perChunk)
