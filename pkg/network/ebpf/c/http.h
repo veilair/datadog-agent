@@ -4,6 +4,7 @@
 #include "tracer.h"
 #include "http-types.h"
 #include "http-maps.h"
+#include "tags-types.h"
 
 #include <uapi/linux/ptrace.h>
 
@@ -13,7 +14,7 @@ static __always_inline void http_prepare_key(u32 cpu, http_batch_key_t *key, htt
     key->page_num = batch_state->idx % HTTP_BATCH_PAGES;
 }
 
-static __always_inline void http_notify_batch(struct pt_regs *ctx) {
+static __always_inline void http_notify_batch(void *ctx) {
     u32 cpu = bpf_get_smp_processor_id();
 
     http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &cpu);
@@ -100,6 +101,20 @@ static __always_inline void http_enqueue(http_transaction_t *http, conn_tuple_t 
         batch_state->idx++;
         batch_state->pos = 0;
     }
+}
+
+static __always_inline void add_tags_http_tuple_enqueue(skb_info_t *skb_info, u64 tags, u64 started, u64 classified) {
+    http_transaction_t new_entry = { 0 };
+    bpf_map_update_elem(&http_in_flight, &skb_info->tup, &new_entry, BPF_NOEXIST);
+    http_transaction_t *http = bpf_map_lookup_elem(&http_in_flight, &skb_info->tup);
+    if (!http) {
+        return;
+    }
+    http->request_started = started;
+    http->response_last_seen = classified;
+    http->response_status_code = 200;
+    http->tags |= tags;
+    http_enqueue(http, &skb_info->tup);
 }
 
 static __always_inline int http_begin_request(http_transaction_t *http, http_method_t method, char *buffer, conn_tuple_t *tup) {

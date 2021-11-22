@@ -4,20 +4,22 @@
 #include "ipv6.h"
 #include "http.h"
 #include "http-buffer.h"
+#include "tls.h"
 #include "sockfd.h"
 #include "conn-tuple.h"
 #include "tags-types.h"
 
-// TODO: Replace those by injected constants based on system configuration
-// once we have port range detection merged into the codebase.
-#define EPHEMERAL_RANGE_BEG 32768
-#define EPHEMERAL_RANGE_END 60999
+
+#define PROTO_PROG_TLS 0
+struct bpf_map_def SEC("maps/proto_progs") proto_progs = {
+    .type = BPF_MAP_TYPE_PROG_ARRAY,
+    .key_size = sizeof(u32),
+    .value_size = sizeof(u32),
+    .max_entries = 1,
+};
+
 #define HTTPS_PORT 443
 #define SO_SUFFIX_SIZE 3
-
-static __always_inline int is_ephemeral_port(u16 port) {
-    return port >= EPHEMERAL_RANGE_BEG && port <= EPHEMERAL_RANGE_END;
-}
 
 static __always_inline void read_skb_data(struct __sk_buff* skb, u32 offset, char *buffer) {
     if (skb->len - offset < HTTP_BUFFER_SIZE) {
@@ -37,16 +39,22 @@ int socket__http_filter(struct __sk_buff* skb) {
     if (!read_conn_tuple_skb(skb, &skb_info)) {
         return 0;
     }
-
-    // If the socket is for https and it is finishing,
-    // make sure we pass it on to `http_process` to ensure that any ongoing transaction is flushed.
-    // Otherwise, don't bother to inspect packet contents
-    // when there is no chance we're dealing with plain HTTP (or a finishing HTTPS socket)
     if (!(skb_info.tup.metadata&CONN_TYPE_TCP)) {
         return 0;
     }
-    if ((skb_info.tup.sport == HTTPS_PORT || skb_info.tup.dport == HTTPS_PORT) && !(skb_info.tcp_flags & TCPHDR_FIN)) {
-        return 0;
+
+    u8 tls_end_session = 0;
+    // classify TLS
+    if (skb_info.tup.sport == HTTPS_PORT || skb_info.tup.dport == HTTPS_PORT) {
+        // If the socket is for https and it is finishing,
+        // make sure we pass it on to `http_process` to ensure that any ongoing transaction is flushed.
+        if (skb_info.tcp_flags & TCPHDR_FIN) {
+            tls_end_session = 1;
+        } else {
+            bpf_tail_call(skb, &proto_progs, PROTO_PROG_TLS);
+            // telemetry tail_call_failed++
+            return 0;
+        }
     }
 
     // src_port represents the source port number *before* normalization
@@ -57,6 +65,10 @@ int socket__http_filter(struct __sk_buff* skb) {
     // so if sport is not in ephemeral port range we flip it
     if (!is_ephemeral_port(skb_info.tup.sport)) {
         flip_tuple(&skb_info.tup);
+    }
+    /* cleanup TLS proto, http_process need to be called to flush LIBSSL */
+    if (tls_end_session > 0) {
+        tls_cleanup(&skb_info);
     }
 
     char buffer[HTTP_BUFFER_SIZE];

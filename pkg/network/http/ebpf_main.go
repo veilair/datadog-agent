@@ -30,6 +30,10 @@ const (
 	httpBatchStateMap        = "http_batch_state"
 	httpNotificationsPerfMap = "http_notifications"
 
+	PROTO_PROG_TLS  = 0 // protoProgsMap[0] pointing to socket/proto_tls tail_call
+	protoProgsMap   = "proto_progs"
+	tlsInFlightMap  = "tls_in_flight"
+	tlsProtoProcess = "socket/proto_tls"
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
 	// to inspect plain HTTP traffic
 	httpSocketFilter = "socket/http_filter"
@@ -84,9 +88,11 @@ func newEBPFProgram(c *config.Config, offsets []manager.ConstantEditor, sockFD *
 	batchCompletionHandler := ddebpf.NewPerfHandler(batchNotificationsChanSize)
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
+			{Name: protoProgsMap},
 			{Name: httpInFlightMap},
 			{Name: httpBatchesMap},
 			{Name: httpBatchStateMap},
+			{Name: tlsInFlightMap},
 			{Name: sslSockByCtxMap},
 			{Name: "ssl_read_args"},
 			{Name: "bio_new_socket_args"},
@@ -140,6 +146,20 @@ func (e *ebpfProgram) Init() error {
 				Type:       ebpf.Hash,
 				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
 				EditorFlag: manager.EditMaxEntries,
+			},
+			tlsInFlightMap: {
+				Type:       ebpf.Hash,
+				MaxEntries: uint32(e.cfg.MaxTrackedConnections),
+				EditorFlag: manager.EditMaxEntries,
+			},
+		},
+		TailCallRouter: []manager.TailCallRoute{
+			{
+				ProgArrayName: protoProgsMap,
+				Key:           PROTO_PROG_TLS,
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					Section: tlsProtoProcess,
+				},
 			},
 		},
 		ActivatedProbes: []manager.ProbesSelector{
