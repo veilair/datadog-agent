@@ -102,7 +102,7 @@ func errorHandler(err error) http.Handler {
 func newProfileProxy(transport http.RoundTripper, targets []*url.URL, keys []string, tags string) *httputil.ReverseProxy {
 	director := func(req *http.Request) {
 		req.Close = true
-
+		req.Header.Set("Connection", "close")
 		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", info.Version))
 		if _, ok := req.Header["User-Agent"]; !ok {
 			// explicitly disable User-Agent so it's not set to the default value
