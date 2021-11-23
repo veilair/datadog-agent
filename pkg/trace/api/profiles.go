@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -154,6 +155,7 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 			rresp.StatusCode = http.StatusOK
 		}
 	}()
+	log.Info("Num of targets " + strconv.Itoa(len(m.targets)))
 	if len(m.targets) == 1 {
 		setTarget(req, m.targets[0], m.keys[0])
 		return m.rt.RoundTrip(req)
