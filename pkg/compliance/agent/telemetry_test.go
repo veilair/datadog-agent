@@ -10,42 +10,45 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/collectors"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	"github.com/stretchr/testify/assert"
 )
 
-type dummyCollector struct{ ctrCount int }
+type mockContainerLister struct {
+	containers []*workloadmeta.Container
+	err        error
+}
 
-func (dc *dummyCollector) Detect() error                                 { return nil }
-func (dc *dummyCollector) UpdateMetrics(c []*containers.Container) error { return nil }
-func (dc *dummyCollector) List() ([]*containers.Container, error) {
-	ctrList := []*containers.Container{}
-	for i := 0; i < dc.ctrCount; i++ {
-		ctrList = append(ctrList, &containers.Container{ID: strconv.Itoa(i)})
+func (l *mockContainerLister) List() ([]*workloadmeta.Container, error) {
+	return l.containers, l.err
+}
+
+func (l *mockContainerLister) createRandomContainers(n int) {
+	for i := 0; i < n; i++ {
+		l.containers = append(l.containers, &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   strconv.FormatInt(int64(i), 10),
+			},
+			State: workloadmeta.ContainerState{Running: true},
+		})
 	}
-	return ctrList, nil
-}
-
-type dummyDetector struct{ ctrCount int }
-
-func (dd *dummyDetector) GetPreferred() (collectors.Collector, string, error) {
-	return &dummyCollector{ctrCount: dd.ctrCount}, "dummy", nil
-}
-
-func newDummyDetector(ctrCount int) collectors.DetectorInterface {
-	return &dummyDetector{ctrCount: ctrCount}
 }
 
 func TestReportContainersCount(t *testing.T) {
 	mockSender := mocksender.NewMockSender("foo")
 	mockSender.SetupAcceptAll()
 
-	telemetry := &telemetry{sender: mockSender}
+	ctrLister := &mockContainerLister{}
+	telemetry := &telemetry{
+		sender:    mockSender,
+		ctrLister: ctrLister,
+	}
 
 	containersCount := 10
-	telemetry.detector = newDummyDetector(containersCount)
+	ctrLister.createRandomContainers(containersCount)
+
 	assert.NoError(t, telemetry.reportContainers())
 	mockSender.AssertNumberOfCalls(t, "Gauge", containersCount)
 	for i := 0; i < containersCount; i++ {

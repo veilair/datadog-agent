@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build docker
 // +build docker
 
 package fake
@@ -37,5 +38,4 @@ func (c *SystemAPIClient) DiskUsage(ctx context.Context) (types.DiskUsage, error
 
 func (c *SystemAPIClient) Ping(ctx context.Context) (types.Ping, error) {
 	return types.Ping{}, nil
-
 }
