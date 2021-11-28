@@ -34,7 +34,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `capset` | Process | A process changed its capacity set | 7.27 |
 | `chmod` | File | A file’s permissions were changed | 7.27 |
 | `chown` | File | A file’s owner was changed | 7.27 |
-| `dns` | Kernel | A DNS name was resolved | 7.34 |
+| `dns` | Kernel | A DNS request was sent | 7.34 |
 | `exec` | Process | A process was executed or forked | 7.27 |
 | `link` | File | Create a new name/alias for a file | 7.27 |
 | `mkdir` | File | A directory was created | 7.27 |
@@ -273,12 +273,15 @@ A file’s owner was changed
 
 ### Event `dns`
 
-A DNS name was resolved
+A DNS request was sent
 
 | Property | Type | Definition |
 | -------- | ---- | ---------- |
+| `dns.dns_server_ip_family` | int | DNS server IP family (IPv4 or IPv6) of the DNS server IP |
+| `dns.id` | int | id field of the DNS request |
 | `dns.name` | string | name field of the DNS request |
 | `dns.qclass` | int | qclass field of the DNS request |
+| `dns.qdcount` | int | qdcount field of the DNS request |
 | `dns.qtype` | int | qtype field of the DNS request |
 | `dns.retval` | int | Return value of the syscall |
 

@@ -27,6 +27,9 @@ CWS logs have the following JSON schema:
         "bpf": {
             "$ref": "#/definitions/BPFEvent"
         },
+        "dns": {
+            "$ref": "#/definitions/DNSEvent"
+        },
         "usr": {
             "$ref": "#/definitions/UserContext"
         },
@@ -56,6 +59,7 @@ CWS logs have the following JSON schema:
 | `file` | $ref | Please see [FileEvent](#fileevent) |
 | `selinux` | $ref | Please see [SELinuxEvent](#selinuxevent) |
 | `bpf` | $ref | Please see [BPFEvent](#bpfevent) |
+| `dns` | $ref | Please see [DNSEvent](#dnsevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
 | `dd` | $ref | Please see [DDContext](#ddcontext) |
@@ -215,6 +219,61 @@ CWS logs have the following JSON schema:
 | ----- | ----------- |
 | `span_id` | Span ID used for APM correlation |
 | `trace_id` | Trace ID used for APM correlation |
+
+
+## `DNSEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "required": [
+        "id",
+        "qdcount",
+        "qclass",
+        "qtype",
+        "dns_server_ip",
+        "name"
+    ],
+    "properties": {
+        "id": {
+            "type": "integer",
+            "description": "id is the unique identifier of the DNS request"
+        },
+        "qdcount": {
+            "type": "integer",
+            "description": "qdcount is the number of questions in the DNS request"
+        },
+        "qclass": {
+            "type": "string",
+            "description": "qclass is the class of the DNS request"
+        },
+        "qtype": {
+            "type": "string",
+            "description": "qtype is the type of the DNS request"
+        },
+        "dns_server_ip": {
+            "type": "string",
+            "description": "dns_server_ip is the DNS server IP to which the DNS request was sent"
+        },
+        "name": {
+            "type": "string",
+            "description": "name of the DNS request"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `id` | id is the unique identifier of the DNS request |
+| `qdcount` | qdcount is the number of questions in the DNS request |
+| `qclass` | qclass is the class of the DNS request |
+| `qtype` | qtype is the type of the DNS request |
+| `dns_server_ip` | dns_server_ip is the DNS server IP to which the DNS request was sent |
+| `name` | name of the DNS request |
 
 
 ## `EventContext`

@@ -2371,12 +2371,16 @@ func easyjsonA970e379DecodeGithubComDataDogDatadogAgentPkgSecurityProbe13(in *jl
 			continue
 		}
 		switch key {
+		case "id":
+			out.ID = int(in.Int())
 		case "qdcount":
 			out.QDCount = int(in.Int())
 		case "qclass":
 			out.QClass = string(in.String())
 		case "qtype":
 			out.QType = string(in.String())
+		case "dns_server_ip":
+			out.DNSServerIP = string(in.String())
 		case "name":
 			out.Name = string(in.String())
 		default:
@@ -2394,8 +2398,13 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe13(out *j
 	first := true
 	_ = first
 	{
-		const prefix string = ",\"qdcount\":"
+		const prefix string = ",\"id\":"
 		out.RawString(prefix[1:])
+		out.Int(int(in.ID))
+	}
+	{
+		const prefix string = ",\"qdcount\":"
+		out.RawString(prefix)
 		out.Int(int(in.QDCount))
 	}
 	{
@@ -2407,6 +2416,11 @@ func easyjsonA970e379EncodeGithubComDataDogDatadogAgentPkgSecurityProbe13(out *j
 		const prefix string = ",\"qtype\":"
 		out.RawString(prefix)
 		out.String(string(in.QType))
+	}
+	{
+		const prefix string = ",\"dns_server_ip\":"
+		out.RawString(prefix)
+		out.String(string(in.DNSServerIP))
 	}
 	{
 		const prefix string = ",\"name\":"

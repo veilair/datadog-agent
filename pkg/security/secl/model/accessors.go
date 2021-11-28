@@ -522,6 +522,26 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Weight: 9999,
 		}, nil
 
+	case "dns.dns_server_ip_family":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).DNS.DNSServerIPFamily)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
+	case "dns.id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+
+				return int((*Event)(ctx.Object).DNS.ID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+
 	case "dns.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -4234,6 +4254,10 @@ func (e *Event) GetFields() []eval.Field {
 
 		"container.tags",
 
+		"dns.dns_server_ip_family",
+
+		"dns.id",
+
 		"dns.name",
 
 		"dns.qclass",
@@ -5032,6 +5056,14 @@ func (e *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "container.tags":
 
 		return e.ContainerContext.Tags, nil
+
+	case "dns.dns_server_ip_family":
+
+		return int(e.DNS.DNSServerIPFamily), nil
+
+	case "dns.id":
+
+		return int(e.DNS.ID), nil
 
 	case "dns.name":
 
@@ -7052,6 +7084,12 @@ func (e *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "container.tags":
 		return "*", nil
 
+	case "dns.dns_server_ip_family":
+		return "dns", nil
+
+	case "dns.id":
+		return "dns", nil
+
 	case "dns.name":
 		return "dns", nil
 
@@ -8160,6 +8198,14 @@ func (e *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "container.tags":
 
 		return reflect.String, nil
+
+	case "dns.dns_server_ip_family":
+
+		return reflect.Int, nil
+
+	case "dns.id":
+
+		return reflect.Int, nil
 
 	case "dns.name":
 
@@ -9883,6 +9929,28 @@ func (e *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "ContainerContext.Tags"}
 		}
 		e.ContainerContext.Tags = append(e.ContainerContext.Tags, str)
+
+		return nil
+
+	case "dns.dns_server_ip_family":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DNS.DNSServerIPFamily"}
+		}
+		e.DNS.DNSServerIPFamily = uint64(v)
+
+		return nil
+
+	case "dns.id":
+
+		var ok bool
+		v, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "DNS.ID"}
+		}
+		e.DNS.ID = uint16(v)
 
 		return nil
 
