@@ -33,7 +33,7 @@ func generateContextKey(sample metrics.MetricSampleContext) ckey.ContextKey {
 
 func TestCheckGaugeSampling(t *testing.T) {
 	for _, useCache := range []bool{true, false} {
-		checkSampler := newCheckSampler(1, true, 1*time.Second, useCache)
+		checkSampler := newCheckSampler(1, true, 1*time.Second, newTagsCache(useCache, "test"))
 
 		mSample1 := metrics.MetricSample{
 			Name:       "my.metric.name",
@@ -94,7 +94,7 @@ func TestCheckGaugeSampling(t *testing.T) {
 
 func TestCheckRateSampling(t *testing.T) {
 	for _, useCache := range []bool{true, false} {
-		checkSampler := newCheckSampler(1, true, 1*time.Second, useCache)
+		checkSampler := newCheckSampler(1, true, 1*time.Second, newTagsCache(useCache, "test"))
 
 		mSample1 := metrics.MetricSample{
 			Name:       "my.metric.name",
@@ -145,7 +145,7 @@ func TestCheckRateSampling(t *testing.T) {
 
 func TestHistogramCountSampling(t *testing.T) {
 	for _, useCache := range []bool{true, false} {
-		checkSampler := newCheckSampler(1, true, 1*time.Second, useCache)
+		checkSampler := newCheckSampler(1, true, 1*time.Second, newTagsCache(useCache, "test"))
 
 		mSample1 := metrics.MetricSample{
 			Name:       "my.metric.name",
@@ -208,7 +208,7 @@ func TestHistogramCountSampling(t *testing.T) {
 
 func TestCheckHistogramBucketSampling(t *testing.T) {
 	for _, useCache := range []bool{true, false} {
-		checkSampler := newCheckSampler(1, true, 1*time.Second, useCache)
+		checkSampler := newCheckSampler(1, true, 1*time.Second, newTagsCache(useCache, "test"))
 
 		bucket1 := &metrics.HistogramBucket{
 			Name:            "my.histogram",
@@ -283,7 +283,7 @@ func TestCheckHistogramBucketSampling(t *testing.T) {
 
 func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
 	for _, useCache := range []bool{true, false} {
-		checkSampler := newCheckSampler(1, true, 1*time.Second, useCache)
+		checkSampler := newCheckSampler(1, true, 1*time.Second, newTagsCache(useCache, "test"))
 
 		bucket1 := &metrics.HistogramBucket{
 			Name:            "my.histogram",
@@ -336,7 +336,7 @@ func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
 
 func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
 	for _, useCache := range []bool{true, false} {
-		checkSampler := newCheckSampler(1, true, 1*time.Second, useCache)
+		checkSampler := newCheckSampler(1, true, 1*time.Second, newTagsCache(useCache, "test"))
 
 		bucket1 := &metrics.HistogramBucket{
 			Name:       "my.histogram",

@@ -74,7 +74,7 @@ func TestTrackContext(t *testing.T) {
 			tagsKey: 241159395798695535,
 			Host:    mSample3.Host,
 		}
-		contextResolver := newContextResolver(useCache)
+		contextResolver := newContextResolver(newTagsCache(useCache, "test"))
 
 		// Track the 2 contexts
 		contextKey1 := contextResolver.trackContext(&mSample1)
@@ -114,7 +114,7 @@ func TestExpireContexts(t *testing.T) {
 			Tags:       []string{"foo", "bar", "baz"},
 			SampleRate: 1,
 		}
-		contextResolver := newTimestampContextResolver(useCache)
+		contextResolver := newTimestampContextResolver(newTagsCache(useCache, "test"))
 
 		// Track the 2 contexts
 		contextKey1 := contextResolver.trackContext(&mSample1, 4)
@@ -147,7 +147,7 @@ func TestCountBasedExpireContexts(t *testing.T) {
 		mSample1 := metrics.MetricSample{Name: "my.metric.name1"}
 		mSample2 := metrics.MetricSample{Name: "my.metric.name2"}
 		mSample3 := metrics.MetricSample{Name: "my.metric.name3"}
-		contextResolver := newCountBasedContextResolver(2, useCache)
+		contextResolver := newCountBasedContextResolver(2, newTagsCache(useCache, "test"))
 
 		contextKey1 := contextResolver.trackContext(&mSample1)
 		contextKey2 := contextResolver.trackContext(&mSample2)
@@ -171,7 +171,7 @@ func TestCountBasedExpireContexts(t *testing.T) {
 func TestTagDeduplication(t *testing.T) {
 	for _, useCache := range []bool{true, false} {
 
-		resolver := newContextResolver(useCache)
+		resolver := newContextResolver(newTagsCache(useCache, "test"))
 
 		ckey := resolver.trackContext(&metrics.MetricSample{
 			Name: "foo",

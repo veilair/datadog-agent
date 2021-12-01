@@ -31,13 +31,13 @@ type TimeSampler struct {
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
-func NewTimeSampler(interval int64, useCache bool) *TimeSampler {
+func NewTimeSampler(interval int64, cache *tagsCache) *TimeSampler {
 	if interval == 0 {
 		interval = bucketSize
 	}
 	return &TimeSampler{
 		interval:                    interval,
-		contextResolver:             newTimestampContextResolver(useCache),
+		contextResolver:             newTimestampContextResolver(cache),
 		metricsByTimestamp:          map[int64]metrics.ContextMetrics{},
 		counterLastSampledByContext: map[ckey.ContextKey]float64{},
 		sketchMap:                   make(sketchMap),

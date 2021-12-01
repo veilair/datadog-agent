@@ -229,6 +229,7 @@ type BufferedAggregator struct {
 
 	statsdSampler          TimeSampler
 	checkSamplers          map[check.ID]*CheckSampler
+	checkTagsCache         *tagsCache
 	serviceChecks          metrics.ServiceChecks
 	events                 metrics.Events
 	flushInterval          time.Duration
@@ -266,7 +267,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		agentName = flavor.HerokuAgent
 	}
 
-	useCache := config.Datadog.GetBool("dogstatsd_use_tags_cache")
+	statsdTagsCache := newTagsCache(config.Datadog.GetBool("dogstatsd_use_tags_cache"), "dogstatsd")
+	checkTagsCache := newTagsCache(config.Datadog.GetBool("check_sampler_use_tags_cache"), "checks")
 
 	aggregator := &BufferedAggregator{
 		bufferedMetricIn:       make(chan []metrics.MetricSample, bufferSize),
@@ -286,8 +288,9 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 
 		MetricSamplePool: metrics.NewMetricSamplePool(MetricSamplePoolBatchSize),
 
-		statsdSampler:           *NewTimeSampler(bucketSize, useCache),
+		statsdSampler:           *NewTimeSampler(bucketSize, statsdTagsCache),
 		checkSamplers:           make(map[check.ID]*CheckSampler),
+		checkTagsCache:          checkTagsCache,
 		flushInterval:           flushInterval,
 		serializer:              s,
 		eventPlatformForwarder:  eventPlatformForwarder,
@@ -379,7 +382,7 @@ func (agg *BufferedAggregator) registerSender(id check.ID) error {
 		config.Datadog.GetInt("check_sampler_bucket_commits_count_expiry"),
 		config.Datadog.GetBool("check_sampler_expire_metrics"),
 		config.Datadog.GetDuration("check_sampler_stateful_metric_expiration_time"),
-		config.Datadog.GetBool("check_sampler_use_tags_cache"),
+		agg.checkTagsCache,
 	)
 	return nil
 }

@@ -29,7 +29,7 @@ func notSame(t *testing.T, a []string, b []string) {
 }
 
 func TestCache(t *testing.T) {
-	c := newTagsCache(true)
+	c := newTagsCache(true, "test")
 
 	t1 := tagset.NewHashingTagsAccumulatorWithTags([]string{"1"})
 	t2 := tagset.NewHashingTagsAccumulatorWithTags([]string{"2"})
@@ -89,7 +89,7 @@ func TestCache(t *testing.T) {
 }
 
 func TestCacheDisabled(t *testing.T) {
-	c := newTagsCache(false)
+	c := newTagsCache(false, "test")
 
 	t1 := tagset.NewHashingTagsAccumulatorWithTags([]string{"1"})
 	t2 := tagset.NewHashingTagsAccumulatorWithTags([]string{"2"})

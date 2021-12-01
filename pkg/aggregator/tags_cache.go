@@ -8,6 +8,7 @@ package aggregator
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 // tags is used to keep track of tag slices shared by the contexts.
@@ -22,12 +23,14 @@ type tagsCache struct {
 	tagsByKey map[ckey.TagsKey]*tagsEntry
 	cap       int
 	enabled   bool
+	telemetry tagsCacheTelemetry
 }
 
-func newTagsCache(enabled bool) tagsCache {
-	return tagsCache{
+func newTagsCache(enabled bool, name string) *tagsCache {
+	return &tagsCache{
 		tagsByKey: map[ckey.TagsKey]*tagsEntry{},
 		enabled:   enabled,
+		telemetry: *newTagsCacheTelemetry(name),
 	}
 }
 
@@ -45,6 +48,7 @@ func (tc *tagsCache) insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccu
 	if t := tc.tagsByKey[key]; t != nil {
 		tags = t.tags
 		t.refs++
+		tc.telemetry.hits.Inc()
 	} else {
 		entry := &tagsEntry{
 			tags: tagsBuffer.Copy(),
@@ -53,6 +57,7 @@ func (tc *tagsCache) insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccu
 		tags = entry.tags
 		tc.tagsByKey[key] = entry
 		tc.cap++
+		tc.telemetry.miss.Inc()
 	}
 
 	return tags
@@ -84,5 +89,72 @@ func (tc *tagsCache) shrink() {
 		}
 		tc.cap = len(new)
 		tc.tagsByKey = new
+	}
+}
+
+func (tc *tagsCache) updateTelemetry() {
+	t := &tc.telemetry
+
+	tlmTagsCacheMaxSize.Set(float64(tc.cap), t.name)
+	tlmTagsCacheSize.Set(float64(len(tc.tagsByKey)), t.name)
+
+	minSize := 0
+	maxSize := 0
+	sumSize := 0
+	for _, e := range tc.tagsByKey {
+		tlmTagsCacheTagsetRefs.Observe(float64(e.refs), t.name)
+		n := len(e.tags)
+		if n < minSize {
+			minSize = n
+		}
+		if n > maxSize {
+			maxSize = n
+		}
+		sumSize += n
+	}
+
+	tlmTagsCacheTagsetSizeMin.Set(float64(minSize), t.name)
+	tlmTagsCacheTagsetSizeMax.Set(float64(maxSize), t.name)
+	tlmTagsCacheTagsetSizeSum.Set(float64(sumSize), t.name)
+}
+
+const tlmSubsystem = "aggregator_tags_cache"
+
+var (
+	tlmTagsCacheHits = telemetry.NewCounter(tlmSubsystem, "hits_total",
+		[]string{"cache_instance_name"},
+		"number of times cache already contained the tags")
+	tlmTagsCacheMiss = telemetry.NewCounter(tlmSubsystem, "miss_total",
+		[]string{"cache_instance_name"},
+		"number of times cache did not contain the tags")
+
+	tlmTagsCacheSize = telemetry.NewGauge(tlmSubsystem, "current_entries",
+		[]string{"cache_instance_name"},
+		"number of entries in the tags cache")
+	tlmTagsCacheMaxSize = telemetry.NewGauge(tlmSubsystem, "max_entries",
+		[]string{"cache_instance_name"},
+		"maximum number of entries since last shrink")
+
+	tlmTagsCacheTagsetSizeMin = telemetry.NewGauge(tlmSubsystem, "tagset_tags_size_min", []string{"cache_instance_name"}, "minimum number of tags in a tagset")
+	tlmTagsCacheTagsetSizeMax = telemetry.NewGauge(tlmSubsystem, "tagset_tags_size_max", []string{"cache_instance_name"}, "maximum number of tags in a tagset")
+	tlmTagsCacheTagsetSizeSum = telemetry.NewGauge(tlmSubsystem, "tagset_tags_size_sum", []string{"cache_instance_name"}, "total number of tags stored by the cache")
+
+	tlmTagsCacheTagsetRefs = telemetry.NewHistogram(tlmSubsystem, "tagset_refs_count",
+		[]string{"cache_instance_name"},
+		"distribution of usage count of tagsets in the cache",
+		[]float64{1, 2, 3, 4, 8, 16})
+)
+
+type tagsCacheTelemetry struct {
+	hits telemetry.SimpleCounter
+	miss telemetry.SimpleCounter
+	name string
+}
+
+func newTagsCacheTelemetry(name string) *tagsCacheTelemetry {
+	return &tagsCacheTelemetry{
+		hits: tlmTagsCacheHits.WithValues(name),
+		miss: tlmTagsCacheMiss.WithValues(name),
+		name: name,
 	}
 }

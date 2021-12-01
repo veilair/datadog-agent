@@ -24,7 +24,7 @@ type Context struct {
 // contextResolver allows tracking and expiring contexts
 type contextResolver struct {
 	contextsByKey map[ckey.ContextKey]*Context
-	tagsCache     tagsCache
+	tagsCache     *tagsCache
 	keyGenerator  *ckey.KeyGenerator
 	// buffer slice allocated once per contextResolver to combine and sort
 	// tags, origin detection tags and k8s tags.
@@ -36,10 +36,10 @@ func (cr *contextResolver) generateContextKey(metricSampleContext metrics.Metric
 	return cr.keyGenerator.GenerateWithTags(metricSampleContext.GetName(), metricSampleContext.GetHost(), cr.tagsBuffer)
 }
 
-func newContextResolver(useCache bool) *contextResolver {
+func newContextResolver(cache *tagsCache) *contextResolver {
 	return &contextResolver{
 		contextsByKey: make(map[ckey.ContextKey]*Context),
-		tagsCache:     newTagsCache(useCache),
+		tagsCache:     cache,
 		keyGenerator:  ckey.NewKeyGenerator(),
 		tagsBuffer:    tagset.NewHashingTagsAccumulator(),
 	}
@@ -86,6 +86,7 @@ func (cr *contextResolver) removeKeys(expiredContextKeys []ckey.ContextKey) {
 	}
 
 	cr.tagsCache.shrink()
+	cr.tagsCache.updateTelemetry()
 }
 
 // timestampContextResolver allows tracking and expiring contexts based on time.
@@ -94,9 +95,9 @@ type timestampContextResolver struct {
 	lastSeenByKey map[ckey.ContextKey]float64
 }
 
-func newTimestampContextResolver(useCache bool) *timestampContextResolver {
+func newTimestampContextResolver(cache *tagsCache) *timestampContextResolver {
 	return &timestampContextResolver{
-		resolver:      newContextResolver(useCache),
+		resolver:      newContextResolver(cache),
 		lastSeenByKey: make(map[ckey.ContextKey]float64),
 	}
 }
@@ -158,9 +159,9 @@ type countBasedContextResolver struct {
 	expireCountInterval int64
 }
 
-func newCountBasedContextResolver(expireCountInterval int, useCache bool) *countBasedContextResolver {
+func newCountBasedContextResolver(expireCountInterval int, cache *tagsCache) *countBasedContextResolver {
 	return &countBasedContextResolver{
-		resolver:            newContextResolver(useCache),
+		resolver:            newContextResolver(cache),
 		expireCountByKey:    make(map[ckey.ContextKey]int64),
 		expireCount:         0,
 		expireCountInterval: int64(expireCountInterval),
