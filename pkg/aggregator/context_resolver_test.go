@@ -58,21 +58,38 @@ func TestTrackContext(t *testing.T) {
 			Host:       "metric-hostname",
 			SampleRate: 1,
 		}
+
+		var expectedRefs2 uint64 = 1
+		var expectedRefs3 uint64 = 1
+		if useCache {
+			expectedRefs2 = 2
+			expectedRefs3 = 2
+		}
+
 		expectedContext1 := Context{
-			Name:    mSample1.Name,
-			Tags:    mSample1.Tags,
-			tagsKey: 8090679952712639333,
+			Name: mSample1.Name,
+			tags: &tagsEntry{
+				tags: mSample1.Tags,
+				key:  8090679952712639333,
+				refs: 1,
+			},
 		}
 		expectedContext2 := Context{
-			Name:    mSample2.Name,
-			Tags:    mSample2.Tags,
-			tagsKey: 241159395798695535,
+			Name: mSample2.Name,
+			tags: &tagsEntry{
+				tags: mSample2.Tags,
+				key:  241159395798695535,
+				refs: expectedRefs2,
+			},
 		}
 		expectedContext3 := Context{
-			Name:    mSample3.Name,
-			Tags:    mSample3.Tags,
-			tagsKey: 241159395798695535,
-			Host:    mSample3.Host,
+			Name: mSample3.Name,
+			tags: &tagsEntry{
+				tags: mSample3.Tags,
+				key:  241159395798695535,
+				refs: expectedRefs3,
+			},
+			Host: mSample3.Host,
 		}
 		contextResolver := newContextResolver(newTagsCache(useCache, "test"))
 
@@ -94,6 +111,13 @@ func TestTrackContext(t *testing.T) {
 		unknownContextKey := ckey.ContextKey(0xffffffffffffffff)
 		_, ok := contextResolver.contextsByKey[unknownContextKey]
 		assert.False(t, ok)
+
+		assert.NotSame(t, context1.tags, context2.tags)
+		if useCache {
+			assert.Same(t, context2.tags, context3.tags)
+		} else {
+			assert.NotSame(t, context2.tags, context3.tags)
+		}
 	}
 }
 
@@ -178,7 +202,7 @@ func TestTagDeduplication(t *testing.T) {
 			Tags: []string{"bar", "bar"},
 		})
 
-		assert.Equal(t, len(resolver.contextsByKey[ckey].Tags), 1)
-		assert.Equal(t, resolver.contextsByKey[ckey].Tags, []string{"bar"})
+		assert.Equal(t, len(resolver.contextsByKey[ckey].Tags()), 1)
+		assert.Equal(t, resolver.contextsByKey[ckey].Tags(), []string{"bar"})
 	}
 }

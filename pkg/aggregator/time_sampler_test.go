@@ -282,13 +282,13 @@ func TestSketch(t *testing.T) {
 		var (
 			sampler = NewTimeSampler(0, newTagsCache(useCache, "test"))
 
-			insert = func(t *testing.T, ts float64, ctx Context, values ...float64) {
+			insert = func(t *testing.T, ts float64, name string, tags []string, host string, values ...float64) {
 				t.Helper()
 				for _, v := range values {
 					sampler.addSample(&metrics.MetricSample{
-						Name:       ctx.Name,
-						Tags:       ctx.Tags,
-						Host:       ctx.Host,
+						Name:       name,
+						Tags:       tags,
+						Host:       host,
 						Value:      v,
 						Mtype:      metrics.DistributionType,
 						SampleRate: 1,
@@ -308,14 +308,16 @@ func TestSketch(t *testing.T) {
 		t.Run("single bucket", func(t *testing.T) {
 			var (
 				now    float64
-				ctx    = Context{Name: "m.0", Tags: []string{"a"}, Host: "host"}
+				name   = "m.0"
+				tags   = []string{"a"}
+				host   = "host"
 				exp    = &quantile.Sketch{}
 				keyGen = ckey.NewKeyGenerator()
 			)
 
 			for i := 0; i < bucketSize; i++ {
 				v := float64(i)
-				insert(t, now, ctx, v)
+				insert(t, now, name, tags, host, v)
 				exp.Insert(quantile.Default(), v)
 
 				now++
@@ -323,9 +325,9 @@ func TestSketch(t *testing.T) {
 
 			_, flushed := sampler.flush(now)
 			metrics.AssertSketchSeriesEqual(t, metrics.SketchSeries{
-				Name:     ctx.Name,
-				Tags:     ctx.Tags,
-				Host:     ctx.Host,
+				Name:     name,
+				Tags:     tags,
+				Host:     host,
 				Interval: 10,
 				Points: []metrics.SketchPoint{
 					{
@@ -333,7 +335,7 @@ func TestSketch(t *testing.T) {
 						Ts:     0,
 					},
 				},
-				ContextKey: keyGen.Generate(ctx.Name, ctx.Host, tagset.NewHashingTagsAccumulatorWithTags(ctx.Tags)),
+				ContextKey: keyGen.Generate(name, host, tagset.NewHashingTagsAccumulatorWithTags(tags)),
 			}, flushed[0])
 
 			_, flushed = sampler.flush(now)

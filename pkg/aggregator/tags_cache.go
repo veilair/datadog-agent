@@ -18,6 +18,7 @@ import (
 type tagsEntry struct {
 	tags []string
 	refs uint64
+	key  ckey.TagsKey
 }
 
 // tagsCache is a reference counted cache of the tags slices, to be
@@ -41,29 +42,31 @@ func newTagsCache(enabled bool, name string) *tagsCache {
 // already in the cache, we return existing slice. If the key is new,
 // tags from the accumulator will be copied and associated with the
 // key.
-func (tc *tagsCache) insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumulator) []string {
+func (tc *tagsCache) insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumulator) *tagsEntry {
 	if !tc.enabled {
-		copy := tagsBuffer.Copy()
-		return copy
-	}
-
-	var tags []string
-	if t := tc.tagsByKey[key]; t != nil {
-		tags = t.tags
-		t.refs++
-		tc.telemetry.hits.Inc()
-	} else {
-		entry := &tagsEntry{
+		return &tagsEntry{
 			tags: tagsBuffer.Copy(),
 			refs: 1,
+			key:  key,
 		}
-		tags = entry.tags
+	}
+
+	entry := tc.tagsByKey[key]
+	if entry != nil {
+		entry.refs++
+		tc.telemetry.hits.Inc()
+	} else {
+		entry = &tagsEntry{
+			tags: tagsBuffer.Copy(),
+			refs: 1,
+			key:  key,
+		}
 		tc.tagsByKey[key] = entry
 		tc.cap++
 		tc.telemetry.miss.Inc()
 	}
 
-	return tags
+	return entry
 }
 
 // release is called when a context is removed, and its tags can be
