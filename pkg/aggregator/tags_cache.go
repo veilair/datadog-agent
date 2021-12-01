@@ -6,6 +6,9 @@
 package aggregator
 
 import (
+	"fmt"
+	"math/bits"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -101,8 +104,21 @@ func (tc *tagsCache) updateTelemetry() {
 	minSize := 0
 	maxSize := 0
 	sumSize := 0
+
+	// 1, 2, 3, 4+, 8+, 16+, 32+, 64+
+	var refFreq [8]uint64
 	for _, e := range tc.tagsByKey {
-		tlmTagsCacheTagsetRefs.Observe(float64(e.refs), t.name)
+		// refs is always positive
+
+		r := e.refs
+		if r <= 3 {
+			refFreq[r-1]++
+		} else if r <= 32 {
+			refFreq[bits.Len64(r)]++ // Len(4) = 3, Len(32) = 6
+		} else {
+			refFreq[7]++
+		}
+
 		n := len(e.tags)
 		if n < minSize {
 			minSize = n
@@ -111,6 +127,13 @@ func (tc *tagsCache) updateTelemetry() {
 			maxSize = n
 		}
 		sumSize += n
+	}
+
+	for i := 0; i < 3; i++ {
+		tlmTagsCacheTagsetRefs.Set(float64(refFreq[i]), t.name, fmt.Sprintf("%d", i+1))
+	}
+	for i := 3; i < 8; i++ {
+		tlmTagsCacheTagsetRefs.Set(float64(refFreq[i]), t.name, fmt.Sprintf("%d", 1<<(i-1)))
 	}
 
 	tlmTagsCacheTagsetSizeMin.Set(float64(minSize), t.name)
@@ -139,10 +162,9 @@ var (
 	tlmTagsCacheTagsetSizeMax = telemetry.NewGauge(tlmSubsystem, "tagset_tags_size_max", []string{"cache_instance_name"}, "maximum number of tags in a tagset")
 	tlmTagsCacheTagsetSizeSum = telemetry.NewGauge(tlmSubsystem, "tagset_tags_size_sum", []string{"cache_instance_name"}, "total number of tags stored by the cache")
 
-	tlmTagsCacheTagsetRefs = telemetry.NewHistogram(tlmSubsystem, "tagset_refs_count",
-		[]string{"cache_instance_name"},
-		"distribution of usage count of tagsets in the cache",
-		[]float64{1, 2, 3, 4, 8, 16})
+	tlmTagsCacheTagsetRefs = telemetry.NewGauge(tlmSubsystem, "tagset_refs_count",
+		[]string{"cache_instance_name", "ge"},
+		"distribution of usage count of tagsets in the cache")
 )
 
 type tagsCacheTelemetry struct {
