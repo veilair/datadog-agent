@@ -15,14 +15,16 @@ import (
 
 // Context holds the elements that form a context, and can be serialized into a context key
 type Context struct {
-	Name string
-	Tags []string
-	Host string
+	Name    string
+	Tags    []string
+	tagsKey ckey.TagsKey
+	Host    string
 }
 
 // contextResolver allows tracking and expiring contexts
 type contextResolver struct {
 	contextsByKey map[ckey.ContextKey]*Context
+	tagsCache     tagsCache
 	keyGenerator  *ckey.KeyGenerator
 	// buffer slice allocated once per contextResolver to combine and sort
 	// tags, origin detection tags and k8s tags.
@@ -30,13 +32,14 @@ type contextResolver struct {
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
-func (cr *contextResolver) generateContextKey(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
-	return cr.keyGenerator.Generate(metricSampleContext.GetName(), metricSampleContext.GetHost(), cr.tagsBuffer)
+func (cr *contextResolver) generateContextKey(metricSampleContext metrics.MetricSampleContext) (ckey.ContextKey, ckey.TagsKey) {
+	return cr.keyGenerator.GenerateWithTags(metricSampleContext.GetName(), metricSampleContext.GetHost(), cr.tagsBuffer)
 }
 
-func newContextResolver() *contextResolver {
+func newContextResolver(useCache bool) *contextResolver {
 	return &contextResolver{
 		contextsByKey: make(map[ckey.ContextKey]*Context),
+		tagsCache:     newTagsCache(useCache),
 		keyGenerator:  ckey.NewKeyGenerator(),
 		tagsBuffer:    tagset.NewHashingTagsAccumulator(),
 	}
@@ -44,17 +47,18 @@ func newContextResolver() *contextResolver {
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
 func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSampleContext) ckey.ContextKey {
-	metricSampleContext.GetTags(cr.tagsBuffer)               // tags here are not sorted and can contain duplicates
-	contextKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates from cr.tagsBuffer (and doesn't mind the order)
+	metricSampleContext.GetTags(cr.tagsBuffer)                        // tags here are not sorted and can contain duplicates
+	contextKey, tagsKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates from cr.tagsBuffer (and doesn't mind the order)
 
 	if _, ok := cr.contextsByKey[contextKey]; !ok {
 		// making a copy of tags for the context since tagsBuffer
 		// will be reused later. This allow us to allocate one slice
 		// per context instead of one per sample.
 		cr.contextsByKey[contextKey] = &Context{
-			Name: metricSampleContext.GetName(),
-			Tags: cr.tagsBuffer.Copy(),
-			Host: metricSampleContext.GetHost(),
+			Name:    metricSampleContext.GetName(),
+			Tags:    cr.tagsCache.insert(tagsKey, cr.tagsBuffer),
+			tagsKey: tagsKey,
+			Host:    metricSampleContext.GetHost(),
 		}
 	}
 
@@ -73,8 +77,15 @@ func (cr *contextResolver) length() int {
 
 func (cr *contextResolver) removeKeys(expiredContextKeys []ckey.ContextKey) {
 	for _, expiredContextKey := range expiredContextKeys {
+		context := cr.contextsByKey[expiredContextKey]
 		delete(cr.contextsByKey, expiredContextKey)
+
+		if context != nil {
+			cr.tagsCache.release(context.tagsKey)
+		}
 	}
+
+	cr.tagsCache.shrink()
 }
 
 // timestampContextResolver allows tracking and expiring contexts based on time.
@@ -83,9 +94,9 @@ type timestampContextResolver struct {
 	lastSeenByKey map[ckey.ContextKey]float64
 }
 
-func newTimestampContextResolver() *timestampContextResolver {
+func newTimestampContextResolver(useCache bool) *timestampContextResolver {
 	return &timestampContextResolver{
-		resolver:      newContextResolver(),
+		resolver:      newContextResolver(useCache),
 		lastSeenByKey: make(map[ckey.ContextKey]float64),
 	}
 }
@@ -147,9 +158,9 @@ type countBasedContextResolver struct {
 	expireCountInterval int64
 }
 
-func newCountBasedContextResolver(expireCountInterval int) *countBasedContextResolver {
+func newCountBasedContextResolver(expireCountInterval int, useCache bool) *countBasedContextResolver {
 	return &countBasedContextResolver{
-		resolver:            newContextResolver(),
+		resolver:            newContextResolver(useCache),
 		expireCountByKey:    make(map[ckey.ContextKey]int64),
 		expireCount:         0,
 		expireCountInterval: int64(expireCountInterval),
