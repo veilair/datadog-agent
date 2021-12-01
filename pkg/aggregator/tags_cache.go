@@ -141,28 +141,26 @@ func (tc *tagsCache) updateTelemetry() {
 	tlmTagsCacheTagsetSizeSum.Set(float64(sumSize), t.name)
 }
 
-const tlmSubsystem = "aggregator_tags_cache"
-
 var (
-	tlmTagsCacheHits = telemetry.NewCounter(tlmSubsystem, "hits_total",
+	tlmTagsCacheHits = telemetry.NewCounter("aggregator_tags_cache", "hits_total",
 		[]string{"cache_instance_name"},
 		"number of times cache already contained the tags")
-	tlmTagsCacheMiss = telemetry.NewCounter(tlmSubsystem, "miss_total",
+	tlmTagsCacheMiss = telemetry.NewCounter("aggregator_tags_cache", "miss_total",
 		[]string{"cache_instance_name"},
 		"number of times cache did not contain the tags")
 
-	tlmTagsCacheSize = telemetry.NewGauge(tlmSubsystem, "current_entries",
+	tlmTagsCacheSize = telemetry.NewGauge("aggregator_tags_cache", "current_entries",
 		[]string{"cache_instance_name"},
 		"number of entries in the tags cache")
-	tlmTagsCacheMaxSize = telemetry.NewGauge(tlmSubsystem, "max_entries",
+	tlmTagsCacheMaxSize = telemetry.NewGauge("aggregator_tags_cache", "max_entries",
 		[]string{"cache_instance_name"},
 		"maximum number of entries since last shrink")
 
-	tlmTagsCacheTagsetSizeMin = telemetry.NewGauge(tlmSubsystem, "tagset_tags_size_min", []string{"cache_instance_name"}, "minimum number of tags in a tagset")
-	tlmTagsCacheTagsetSizeMax = telemetry.NewGauge(tlmSubsystem, "tagset_tags_size_max", []string{"cache_instance_name"}, "maximum number of tags in a tagset")
-	tlmTagsCacheTagsetSizeSum = telemetry.NewGauge(tlmSubsystem, "tagset_tags_size_sum", []string{"cache_instance_name"}, "total number of tags stored by the cache")
+	tlmTagsCacheTagsetSizeMin = telemetry.NewGauge("aggregator_tags_cache", "tagset_tags_size_min", []string{"cache_instance_name"}, "minimum number of tags in a tagset")
+	tlmTagsCacheTagsetSizeMax = telemetry.NewGauge("aggregator_tags_cache", "tagset_tags_size_max", []string{"cache_instance_name"}, "maximum number of tags in a tagset")
+	tlmTagsCacheTagsetSizeSum = telemetry.NewGauge("aggregator_tags_cache", "tagset_tags_size_sum", []string{"cache_instance_name"}, "total number of tags stored by the cache")
 
-	tlmTagsCacheTagsetRefs = telemetry.NewGauge(tlmSubsystem, "tagset_refs_count",
+	tlmTagsCacheTagsetRefs = telemetry.NewGauge("aggregator_tags_cache", "tagset_refs_count",
 		[]string{"cache_instance_name", "ge"},
 		"distribution of usage count of tagsets in the cache")
 )
