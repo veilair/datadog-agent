@@ -99,6 +99,7 @@ typedef struct {
 typedef struct {
     conn_tuple_t tup;
     __u32 data_off;
+    __u32 tcp_seq;
     __u8 tcp_flags;
 } skb_info_t;
 
