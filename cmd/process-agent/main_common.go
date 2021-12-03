@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/remote"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -205,10 +204,10 @@ func runAgent(exit chan struct{}) {
 	if ddconfig.Datadog.GetBool("process_config.remote_tagger") {
 		t = remote.NewTagger()
 	} else {
-		// Start workload metadata store before tagger
-		workloadmeta.GetGlobalStore().Start(context.Background())
+		store := workloadmeta.GetGlobalStore()
+		store.Start(context.Background())
 
-		t = local.NewTagger(collectors.DefaultCatalog)
+		t = local.NewTagger(store)
 	}
 	tagger.SetDefaultTagger(t)
 	err = tagger.Init()

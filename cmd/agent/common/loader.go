@@ -14,7 +14,6 @@ import (
 	lsched "github.com/DataDog/datadog-agent/pkg/logs/scheduler"
 	lstatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -26,11 +25,10 @@ import (
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
 func LoadComponents(confdPath string) {
-	workloadmeta.GetGlobalStore().Start(context.Background())
+	store := workloadmeta.GetGlobalStore()
+	store.Start(context.Background())
 
-	// start the tagger. must be done before autodiscovery, as it needs to
-	// be the first subscribed to metadata store to avoid race conditions.
-	tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
+	tagger.SetDefaultTagger(local.NewTagger(store))
 	if err := tagger.Init(); err != nil {
 		log.Errorf("failed to start the tagger: %s", err)
 	}

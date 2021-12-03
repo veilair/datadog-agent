@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -48,9 +47,10 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 	config.DetectFeatures()
 	containers.ResetSharedFilter()
 
-	workloadmeta.GetGlobalStore().Start(context.Background())
+	store := workloadmeta.GetGlobalStore()
+	store.Start(context.Background())
 
-	tagger.SetDefaultTagger(local.NewTagger(collectors.DefaultCatalog))
+	tagger.SetDefaultTagger(local.NewTagger(store))
 	tagger.Init()
 
 	config.SetupLogger(
