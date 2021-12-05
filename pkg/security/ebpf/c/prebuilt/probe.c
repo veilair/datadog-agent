@@ -52,6 +52,7 @@
 #include "flow.h"
 #include "dns.h"
 #include "tc.h"
+#include "net_device.h"
 
 struct invalidate_dentry_event_t {
     struct kevent_t event;

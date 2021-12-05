@@ -37,6 +37,8 @@ func AllProbes() []*manager.Probe {
 	allProbes = append(allProbes, getSELinuxProbes()...)
 	allProbes = append(allProbes, getBPFProbes()...)
 	allProbes = append(allProbes, getFlowProbes()...)
+	allProbes = append(allProbes, getNetDeviceProbes()...)
+	allProbes = append(allProbes, GetTCProbes()...)
 
 	allProbes = append(allProbes,
 		// Syscall monitor
