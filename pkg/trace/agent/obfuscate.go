@@ -126,6 +126,7 @@ func newCreditCardsObfuscator(cfg config.CreditCardsConfig) *ccObfuscator {
 	if cfg.Enabled {
 		// obfuscator disabled
 		pb.SetMetaHook(cco.MetaHook)
+		pb.SetMetaStructHook(cco.MetaStructHook)
 	}
 	return cco
 }
@@ -175,4 +176,49 @@ func (cco *ccObfuscator) MetaHook(k, v string) (newval string) {
 		return "?"
 	}
 	return v
+}
+
+// MetaStructHook checks the tag with the given key and val and returns the final
+// value to be assigned to this tag if it was modified, nil otherwise.
+func (cco *ccObfuscator) MetaStructHook(k string, v []byte) (newval []byte) {
+	if k == "appsec" {
+		var obfuscated bool
+		var appsec pb.AppSecStruct
+		_, err := appsec.UnmarshalMsg(v)
+		if err != nil {
+			// Not an appsec struct, ignore the value and log an error
+			log.Errorf("Error obfuscating appsec struct: %v", err)
+			return nil
+		}
+		obfuscated = false
+		for _, trigger := range appsec.Triggers {
+			for _, rulematch := range trigger.RuleMatches {
+				for _, parameter := range rulematch.Parameters {
+					if obfuscate.IsCardNumber(parameter.Value, cco.luhn) {
+						parameter.Value = "?"
+						obfuscated = true
+					}
+					for i, highlight := range parameter.Highlight {
+						if obfuscate.IsCardNumber(highlight, cco.luhn) {
+							parameter.Highlight[i] = "?"
+							obfuscated = true
+						}
+					}
+				}
+			}
+		}
+		if obfuscated {
+			var newval []byte
+			newval = make([]byte, appsec.Msgsize())
+			_, err := appsec.MarshalMsg(newval)
+			if err != nil {
+				log.Errorf("Error replacing obfuscated appsec struct: %v", err)
+			}
+			return newval
+		}
+		return nil
+	}
+	// Do not obfuscate unknown structures for now
+	log.Debugf("Obfuscating unknown meta struct is not supported for key: %q", k)
+	return nil
 }

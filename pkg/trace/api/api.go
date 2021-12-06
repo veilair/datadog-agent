@@ -629,15 +629,25 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 
 // runMetaHook runs the pb.MetaHook on all spans from traces.
 func runMetaHook(chunks []*pb.TraceChunk) {
-	hook, ok := pb.MetaHook()
-	if !ok {
+	metahook, metahookOK := pb.MetaHook()
+	metastructhook, metastructhookOK := pb.MetaStructHook()
+	if !metahookOK && !metastructhookOK {
 		return
 	}
 	for _, chunk := range chunks {
 		for _, span := range chunk.Spans {
-			for k, v := range span.Meta {
-				if newv := hook(k, v); newv != v {
-					span.Meta[k] = newv
+			if metahookOK {
+				for k, v := range span.Meta {
+					if newv := metahook(k, v); newv != v {
+						span.Meta[k] = newv
+					}
+				}
+			}
+			if metastructhookOK {
+				for k, v := range span.MetaStruct {
+					if newv := metastructhook(k, v); newv != nil {
+						span.MetaStruct[k] = newv
+					}
 				}
 			}
 		}
