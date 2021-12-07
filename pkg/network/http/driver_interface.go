@@ -156,8 +156,7 @@ func (di *httpDriverInterface) startReadingBuffers() {
 			transactionBatch := make([]driver.HttpTransactionType, batchSize)
 
 			for i := uint32(0); i < batchSize; i++ {
-				transaction := (*driver.HttpTransactionType)(unsafe.Pointer(&buf.Data[i*transactionSize]))
-				deepCopyTransactionData(&transactionBatch[i], transaction)
+				transactionBatch[i] = *(*driver.HttpTransactionType)(unsafe.Pointer(&buf.Data[i*transactionSize]))
 			}
 
 			di.dataChannel <- transactionBatch
@@ -180,22 +179,6 @@ func iocpIsClosedError(err error) bool {
 	return err == syscall.Errno(windows.ERROR_OPERATION_ABORTED) ||
 		err == syscall.Errno(windows.ERROR_ABANDONED_WAIT_0) ||
 		err == syscall.Errno(windows.ERROR_INVALID_HANDLE)
-}
-
-func deepCopyTransactionData(dest, src *driver.HttpTransactionType) {
-	dest.Tup.Saddr = src.Tup.Saddr
-	dest.Tup.Daddr = src.Tup.Daddr
-	dest.Tup.Sport = src.Tup.Sport
-	dest.Tup.Dport = src.Tup.Dport
-	dest.Tup.Protocol = src.Tup.Protocol
-	dest.Tup.Family = src.Tup.Family
-	dest.Tup.Pid = src.Tup.Pid
-
-	dest.RequestStarted = src.RequestStarted
-	dest.ResponseLastSeen = src.ResponseLastSeen
-	dest.RequestMethod = src.RequestMethod
-	dest.ResponseStatusCode = src.ResponseStatusCode
-	dest.RequestFragment = src.RequestFragment
 }
 
 func (di *httpDriverInterface) flushPendingTransactions() error {
