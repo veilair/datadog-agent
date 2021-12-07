@@ -144,6 +144,7 @@ func (di *httpDriverInterface) startReadingBuffers() {
 		for {
 			buf, bytesRead, err := driver.GetReadBufferWhenReady(di.iocp)
 			if iocpIsClosedError(err) {
+				log.Debug("http io completion port is closed. stopping http monitoring")
 				return
 			}
 			if err != nil {
