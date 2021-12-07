@@ -65,7 +65,7 @@ func (d *dnsDriver) setupDNSHandle() error {
 func (d *dnsDriver) ReadDNSPacket(visit func([]byte, time.Time) error) (didRead bool, err error) {
 	buf, _, err := driver.GetReadBufferIfReady(d.iocp)
 	if buf == nil || err != nil {
-		return false, errors.Wrap(err, "could not get read buffer")
+		return false, fmt.Errorf("could not get read buffer: %w", err)
 	}
 
 	fph := (*driver.FilterPacketHeader)(unsafe.Pointer(&buf.Data[0]))

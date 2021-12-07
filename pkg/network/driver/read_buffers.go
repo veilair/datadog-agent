@@ -35,7 +35,7 @@ type ReadBuffer struct {
 func PrepareCompletionBuffers(handle windows.Handle, count int) (iocp windows.Handle, buffers []*ReadBuffer, err error) {
 	iocp, err = windows.CreateIoCompletionPort(handle, windows.Handle(0), 0, 0)
 	if err != nil {
-		return windows.Handle(0), nil, errors.Wrap(err, "error creating IO completion port")
+		return windows.Handle(0), nil, fmt.Errorf("error creating IO completion port: %w", err)
 	}
 
 	buffers = make([]*ReadBuffer, count)
@@ -47,7 +47,7 @@ func PrepareCompletionBuffers(handle windows.Handle, count int) (iocp windows.Ha
 		err = windows.ReadFile(handle, buf.Data[:], nil, &(buf.ol))
 		if err != nil && err != windows.ERROR_IO_PENDING {
 			_ = windows.CloseHandle(iocp)
-			return windows.Handle(0), nil, errors.Wrap(err, "failed to initiate readfile")
+			return windows.Handle(0), nil, fmt.Errorf("failed to initiate readfile: %w", err)
 		}
 	}
 
