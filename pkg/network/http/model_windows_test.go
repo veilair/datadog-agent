@@ -20,6 +20,17 @@ func TestPath(t *testing.T) {
 	assert.Equal(t, "/foo/bar", string(tx.Path(b)))
 }
 
+func TestPathHandlesNullTerminator(t *testing.T) {
+	tx := httpTX{
+		RequestFragment: requestFragment(
+			[]byte("GET /foo/\x00bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"),
+		),
+	}
+
+	b := make([]byte, HTTPBufferSize)
+	assert.Equal(t, "/foo/", string(tx.Path(b)))
+}
+
 func TestLatency(t *testing.T) {
 	tx := httpTX{
 		ResponseLastSeen: 2e6,

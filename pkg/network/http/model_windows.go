@@ -22,17 +22,18 @@ var errLostBatch = errors.New("invalid error")
 // For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
 func (tx httpTX) Path(buffer []byte) []byte {
 	b := tx.RequestFragment
+	bLen := fragmentLen(b)
 
 	var start, end int
-	for start = 0; start < len(b) && b[start] != ' '; start++ {
+	for start = 0; start < bLen && b[start] != ' '; start++ {
 	}
 
 	start++
 
-	for end = start; end < len(b) && b[end] != ' ' && b[end] != '?'; end++ {
+	for end = start; end < bLen && b[end] != ' ' && b[end] != '?'; end++ {
 	}
 
-	if start >= end || end > len(b) {
+	if start >= end || end > bLen {
 		return nil
 	}
 
@@ -41,6 +42,16 @@ func (tx httpTX) Path(buffer []byte) []byte {
 	}
 
 	return buffer[:end-start]
+}
+
+// fragmentLen returns the length of a null-terminated request fragment
+func fragmentLen(b tx.RequestFragment) int {
+	for i := 0; i < len(b); i++ {
+		if b[i] == 0 {
+			return i
+		}
+	}
+	return len(b)
 }
 
 // StatusClass returns an integer representing the status code class
