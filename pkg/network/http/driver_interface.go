@@ -132,9 +132,6 @@ func (di *httpDriverInterface) setMaxFlows(maxFlows uint64) error {
 		uint32(unsafe.Sizeof(maxFlows)),
 		nil,
 		uint32(0), nil, nil)
-	if err != nil {
-		log.Warnf("Failed to set max number of flows in driver http filter to %v %v", maxFlows, err)
-	}
 	return err
 }
 
@@ -150,7 +147,7 @@ func (di *httpDriverInterface) startReadingBuffers() {
 				return
 			}
 			if err != nil {
-				log.Infof("Error reading http transaction buffer: %v", err)
+				log.Warnf("Error reading http transaction buffer: %v", err)
 				continue
 			}
 
@@ -166,7 +163,7 @@ func (di *httpDriverInterface) startReadingBuffers() {
 
 			err = driver.StartNextRead(di.driverHTTPHandle.Handle, buf)
 			if err != nil && err != windows.ERROR_IO_PENDING {
-				log.Infof("Error starting next http transaction read: %v")
+				log.Warnf("Error starting next http transaction read: %v")
 			}
 		}
 	}()
@@ -200,13 +197,11 @@ func deepCopyTransactionData(dest, src *driver.HttpTransactionType) {
 	dest.RequestFragment = src.RequestFragment
 }
 
-func (di *httpDriverInterface) flushPendingTransactions() {
+func (di *httpDriverInterface) flushPendingTransactions() error {
 	err := windows.DeviceIoControl(di.driverHTTPHandle.Handle,
 		driver.FlushPendingHttpTxnsIOCTL,
 		nil, uint32(0), nil, uint32(0), nil, nil)
-	if err != nil {
-		log.Warnf("Failed to flush pending http transactions: %v", err)
-	}
+	return err
 }
 
 func (di *httpDriverInterface) close() error {

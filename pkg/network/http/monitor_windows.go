@@ -8,6 +8,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -33,7 +34,11 @@ func NewMonitor(c *config.Config) (*Monitor, error) {
 	}
 
 	if uint64(c.MaxTrackedConnections) != defaultMaxTrackedConnections {
-		di.setMaxFlows(uint64(c.MaxTrackedConnections))
+		maxFlows := uint64(c.MaxTrackedConnections)
+		err := di.setMaxFlows(maxFlows)
+		if err != nil {
+			log.Warnf("Failed to set max number of flows in driver http filter to %v %v", maxFlows, err)
+		}
 	}
 
 	telemetry := newTelemetry()
@@ -65,7 +70,10 @@ func (m *Monitor) Start() {
 				}
 				m.process(transactionBatch)
 			case <-report.C:
-				m.di.flushPendingTransactions()
+				err := m.di.flushPendingTransactions()
+				if err != nil {
+					log.Warnf("Failed to flush pending http transactions: %v", err)
+				}
 			}
 		}
 	}()
