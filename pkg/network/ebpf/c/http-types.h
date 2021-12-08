@@ -8,7 +8,7 @@
 // This controls the number of HTTP transactions read from userspace at a time
 #define HTTP_BATCH_SIZE 15
 // The greater this number is the less likely are colisions/data-races between the flushes
-#define HTTP_BATCH_PAGES 10
+#define HTTP_BATCH_PAGES 15
 
 typedef enum
 {
