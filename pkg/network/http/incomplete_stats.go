@@ -19,15 +19,15 @@ import (
 // Now let's say Container A issues a HTTP request to 2.2.2.2;
 // The eBPF socket filter program will see two "disjoint" TCP segments:
 // (1.1.1.1:ephemeral-port -> 2.2.2.2:server-port) GET / HTTP/1.1
-// (3.3.3.3 -> 1.1.1.1:server-port) HTTP/1.1 200 OK
+// (3.3.3.3 -> 1.1.1.1:ephemeral-port) HTTP/1.1 200 OK
 // Because of that, we join these two parts of the transaction here in userspace using the
 // client address (1.1.1.1:ephemeral-port)
 // There is, however, another variable that can further complicate this: keep-alives
 // You could have, for example, one TCP socket issuing multiple requests:
 // t0: (1.1.1.1:ephemeral-port -> 2.2.2.2:server-port) GET / HTTP/1.1
-// t1: (3.3.3.3 -> 1.1.1.1:server-port) HTTP/1.1 200 OK
+// t1: (3.3.3.3 -> 1.1.1.1:ephemeral-port) HTTP/1.1 200 OK
 // t2: (1.1.1.1:ephemeral-port -> 2.2.2.2:server-port) GET / HTTP/1.1
-// t3: (3.3.3.3 -> 1.1.1.1:server-port) HTTP/1.1 200 OK
+// t3: (3.3.3.3 -> 1.1.1.1:ephemeral-port) HTTP/1.1 200 OK
 // The problem is, due to the way our eBPF batching works, there is no guarantee that these
 // incomplete events will be read in the order they happened, so if we had a greedy approach
 // that joined events as soon as they're sent from eBPF, we could potentially join
