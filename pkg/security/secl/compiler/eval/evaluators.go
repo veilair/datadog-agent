@@ -117,7 +117,7 @@ func (s *StringEvaluator) IsScalar() bool {
 	return s.EvalFnc == nil
 }
 
-// IsScalar returns whether the evaluator is a scalar
+// GetValue returns the evaluator value
 func (s *StringEvaluator) GetValue(ctx *Context) string {
 	if s.EvalFnc == nil {
 		return s.Value
@@ -177,7 +177,7 @@ func (s *StringArrayEvaluator) IsScalar() bool {
 	return s.EvalFnc == nil
 }
 
-// IsScalar returns whether the evaluator is a scalar
+// AppendValue append the given value
 func (s *StringArrayEvaluator) AppendValue(value string) {
 	s.Values = append(s.Values, value)
 }

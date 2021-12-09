@@ -33,7 +33,6 @@ type Resolvers struct {
 	ProcessResolver   *ProcessResolver
 	UserGroupResolver *UserGroupResolver
 	TagsResolver      *TagsResolver
-	SymlinkResolver   *SymlinkResolver
 }
 
 // NewResolvers creates a new instance of Resolvers
@@ -61,7 +60,6 @@ func NewResolvers(config *config.Config, probe *Probe) (*Resolvers, error) {
 		ContainerResolver: &ContainerResolver{},
 		UserGroupResolver: userGroupResolver,
 		TagsResolver:      NewTagsResolver(config),
-		SymlinkResolver:   NewSymLinkResolver(probe.UptadeApprovers),
 	}
 
 	processResolver, err := NewProcessResolver(probe, resolvers, probe.statsdClient, NewProcessResolverOpts(probe.config.CookieCacheSize))
@@ -168,8 +166,6 @@ func (r *Resolvers) Start(ctx context.Context) error {
 	if err := r.ProcessResolver.Start(ctx); err != nil {
 		return err
 	}
-
-	r.SymlinkResolver.Start(ctx)
 	r.MountResolver.Start(ctx)
 
 	if err := r.TagsResolver.Start(ctx); err != nil {
@@ -191,10 +187,6 @@ func (r *Resolvers) Snapshot() error {
 	if err != nil {
 		return errors.Wrap(err, "unable to snapshot SELinux")
 	}
-
-	// just sync root, overlayfs will be synced by the mount resolver
-	r.SymlinkResolver.UpdateSymlinks("")
-
 	return snapshotSELinux(selinuxStatusMap)
 }
 
