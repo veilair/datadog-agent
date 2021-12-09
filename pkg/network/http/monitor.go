@@ -15,12 +15,20 @@ import (
 	"github.com/DataDog/ebpf/manager"
 )
 
-// Monitor is responsible for:
+// Monitor is the interface to HTTP monitoring
+type Monitor interface {
+	Start() error
+	GetHTTPStats() map[Key]RequestStats
+	DumpMaps(maps ...string) (string, error)
+	Stop()
+}
+
+// EBPFMonitor is responsible for:
 // * Creating a raw socket and attaching an eBPF filter to it;
 // * Polling a perf buffer that contains notifications about HTTP transaction batches ready to be read;
 // * Querying these batches by doing a map lookup;
 // * Aggregating and emitting metrics based on the received HTTP transactions;
-type Monitor struct {
+type EBPFMonitor struct {
 	handler func([]httpTX)
 
 	ebpfProgram            *ebpfProgram
@@ -37,8 +45,8 @@ type Monitor struct {
 	stopped       bool
 }
 
-// NewMonitor returns a new Monitor instance
-func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (*Monitor, error) {
+// NewEBPFMonitor returns a new EBPFMonitor instance
+func NewEBPFMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf.Map) (Monitor, error) {
 	mgr, err := newEBPFProgram(c, offsets, sockFD)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up http ebpf program: %s", err)
@@ -80,7 +88,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 		}
 	}
 
-	return &Monitor{
+	return &EBPFMonitor{
 		handler:                handler,
 		ebpfProgram:            mgr,
 		batchManager:           newBatchManager(batchMap, batchStateMap, numCPUs),
@@ -93,11 +101,7 @@ func NewMonitor(c *config.Config, offsets []manager.ConstantEditor, sockFD *ebpf
 }
 
 // Start consuming HTTP events
-func (m *Monitor) Start() error {
-	if m == nil {
-		return nil
-	}
-
+func (m *EBPFMonitor) Start() error {
 	if err := m.ebpfProgram.Start(); err != nil {
 		return err
 	}
@@ -148,11 +152,7 @@ func (m *Monitor) Start() error {
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
-func (m *Monitor) GetHTTPStats() map[Key]RequestStats {
-	if m == nil {
-		return nil
-	}
-
+func (m *EBPFMonitor) GetHTTPStats() map[Key]RequestStats {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	if m.stopped {
@@ -166,11 +166,7 @@ func (m *Monitor) GetHTTPStats() map[Key]RequestStats {
 }
 
 // Stop HTTP monitoring
-func (m *Monitor) Stop() {
-	if m == nil {
-		return
-	}
-
+func (m *EBPFMonitor) Stop() {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	if m.stopped {
@@ -184,7 +180,7 @@ func (m *Monitor) Stop() {
 	m.stopped = true
 }
 
-func (m *Monitor) process(transactions []httpTX, err error) {
+func (m *EBPFMonitor) process(transactions []httpTX, err error) {
 	m.telemetry.aggregate(transactions, err)
 
 	if m.handler != nil && len(transactions) > 0 {
@@ -192,6 +188,6 @@ func (m *Monitor) process(transactions []httpTX, err error) {
 	}
 }
 
-func (m *Monitor) DumpMaps(maps ...string) (string, error) {
+func (m *EBPFMonitor) DumpMaps(maps ...string) (string, error) {
 	return m.ebpfProgram.Manager.DumpMaps(maps...)
 }

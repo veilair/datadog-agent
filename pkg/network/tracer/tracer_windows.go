@@ -32,7 +32,7 @@ type Tracer struct {
 	stopChan        chan struct{}
 	state           network.State
 	reverseDNS      dns.ReverseDNS
-	httpMonitor     *http.Monitor
+	httpMonitor     http.Monitor
 
 	activeBuffer *network.ConnectionBuffer
 	closedBuffer *network.ConnectionBuffer
@@ -76,16 +76,6 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		}
 	}
 
-	var httpMonitor *http.Monitor
-	httpMonitor = nil
-	if config.EnableHTTPMonitoring {
-		httpMonitor, err = http.NewMonitor(config)
-		if err != nil {
-			log.Errorf("could not instantiate http monitor: %s", err)
-		}
-		httpMonitor.Start()
-	}
-
 	tr := &Tracer{
 		config:          config,
 		driverInterface: di,
@@ -95,7 +85,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		activeBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		closedBuffer:    network.NewConnectionBuffer(defaultBufferSize, minBufferSize),
 		reverseDNS:      reverseDNS,
-		httpMonitor:     httpMonitor,
+		httpMonitor:     newHttpMonitor(config),
 		sourceExcludes:  network.ParseConnectionFilters(config.ExcludedSourceConnections),
 		destExcludes:    network.ParseConnectionFilters(config.ExcludedDestinationConnections),
 	}
@@ -183,4 +173,18 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 // DebugEBPFMaps is not implemented on this OS for Tracer
 func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
 	return "", ebpf.ErrNotImplemented
+}
+
+func newHttpMonitor(c *config.Config) http.Monitor {
+	if !config.EnableHTTPMonitoring {
+		return http.NewNoOpMonitor()
+	}
+
+	httpMonitor, err = http.NewDriverMonitor(config)
+	if err != nil {
+		log.Errorf("could not instantiate http monitor: %s", err)
+		return http.NewNoOpMonitor()
+	}
+	httpMonitor.Start()
+	return httpMonitor
 }

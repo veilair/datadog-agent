@@ -15,9 +15,16 @@ const (
 	defaultMaxTrackedConnections = 65536
 )
 
-// Monitor is responsible for aggregating and emitting metrics based on
+// Monitor is the interface to HTTP monitoring
+type Monitor interface {
+	Start()
+	GetHTTPStats() map[Key]RequestStats
+	Stop() error
+}
+
+// DriverMonitor is responsible for aggregating and emitting metrics based on
 // batches of HTTP transactions received from the driver interface
-type Monitor struct {
+type DriverMonitor struct {
 	di         *httpDriverInterface
 	telemetry  *telemetry
 	statkeeper *httpStatKeeper
@@ -26,8 +33,8 @@ type Monitor struct {
 	eventLoopWG sync.WaitGroup
 }
 
-// NewMonitor returns a new Monitor instance
-func NewMonitor(c *config.Config) (*Monitor, error) {
+// NewDriverMonitor returns a new DriverMonitor instance
+func NewDriverMonitor(c *config.Config) (Monitor, error) {
 	di, err := newDriverInterface()
 	if err != nil {
 		return nil, err
@@ -43,7 +50,7 @@ func NewMonitor(c *config.Config) (*Monitor, error) {
 
 	telemetry := newTelemetry()
 
-	return &Monitor{
+	return &DriverMonitor{
 		di:         di,
 		telemetry:  telemetry,
 		statkeeper: newHTTPStatkeeper(c.MaxHTTPStatsBuffered, telemetry),
@@ -51,10 +58,7 @@ func NewMonitor(c *config.Config) (*Monitor, error) {
 }
 
 // Start consuming HTTP events
-func (m *Monitor) Start() {
-	if m == nil {
-		return
-	}
+func (m *DriverMonitor) Start() {
 	m.di.startReadingBuffers()
 
 	m.eventLoopWG.Add(1)
@@ -81,11 +85,7 @@ func (m *Monitor) Start() {
 	return
 }
 
-func (m *Monitor) process(transactionBatch []driver.HttpTransactionType) {
-	if m == nil {
-		return
-	}
-
+func (m *DriverMonitor) process(transactionBatch []driver.HttpTransactionType) {
 	transactions := make([]httpTX, len(transactionBatch))
 	for i := range transactionBatch {
 		transactions[i] = httpTX(transactionBatch[i])
@@ -101,11 +101,7 @@ func (m *Monitor) process(transactionBatch []driver.HttpTransactionType) {
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:
 // [source, dest tuple, request path] -> RequestStats object
-func (m *Monitor) GetHTTPStats() map[Key]RequestStats {
-	if m == nil {
-		return nil
-	}
-
+func (m *DriverMonitor) GetHTTPStats() map[Key]RequestStats {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
@@ -116,11 +112,7 @@ func (m *Monitor) GetHTTPStats() map[Key]RequestStats {
 }
 
 // Stop HTTP monitoring
-func (m *Monitor) Stop() error {
-	if m == nil {
-		return nil
-	}
-
+func (m *DriverMonitor) Stop() error {
 	err := m.di.close()
 	m.eventLoopWG.Wait()
 	return err
