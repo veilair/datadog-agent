@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	// deviceName identifies the name and location of the windows driver
-	deviceName = `\\.\ddnpm`
+	// DeviceName identifies the name and location of the windows driver
+	DeviceName = `\\.\ddnpm`
 )
 
 var (
@@ -73,7 +73,7 @@ func NewHandle(flags uint32, handleType HandleType) (*Handle, error) {
 	if !ok {
 		return nil, fmt.Errorf("Unknown Handle type %v", handleType)
 	}
-	fullpath := deviceName + `\` + pathext
+	fullpath := DeviceName + `\` + pathext
 	p, err := windows.UTF16PtrFromString(fullpath)
 	if err != nil {
 		return nil, err
