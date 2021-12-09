@@ -8,10 +8,10 @@ package driver
 */
 import "C"
 import (
-	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
 	"syscall"
 	"unsafe"
+	"fmt"
 )
 
 // ReadBuffer is the type that an overlapped read returns -- the overlapped object, which must be passed
