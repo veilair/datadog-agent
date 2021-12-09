@@ -32,31 +32,9 @@ func (k *httpBatchKey) Prepare(n httpNotification) {
 	k.page_num = C.uint(int(n.batch_idx) % HTTPBatchPages)
 }
 
-// Path returns the URL from the request fragment captured in eBPF with
-// GET variables excluded.
-// Example:
-// For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
-func (tx *httpTX) Path(buffer []byte) []byte {
-	b := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.request_fragment))
-
-	// b might contain a null terminator in the middle
-	bLen := strlen(b[:])
-
-	var i, j int
-	for i = 0; i < bLen && b[i] != ' '; i++ {
-	}
-
-	i++
-
-	for j = i; j < bLen && b[j] != ' ' && b[j] != '?'; j++ {
-	}
-
-	if i < j && j <= bLen {
-		n := copy(buffer, b[i:j])
-		return buffer[:n]
-	}
-
-	return nil
+// ReqFragment returns a byte slice containing the first HTTPBufferSize bytes of the request
+func (tx *httpTX) ReqFragment() []byte {
+	b := *(*[HTTPBufferSize]byte)(unsafe.Pointer(&tx.request_fragment))[:]
 }
 
 // StatusClass returns an integer representing the status code class
@@ -145,14 +123,4 @@ func nsTimestampToFloat(ns uint64) float64 {
 		shift++
 	}
 	return float64(ns << shift)
-}
-
-// strlen returns the length of a null-terminated string
-func strlen(str []byte) int {
-	for i := 0; i < len(str); i++ {
-		if str[i] == 0 {
-			return i
-		}
-	}
-	return len(str)
 }

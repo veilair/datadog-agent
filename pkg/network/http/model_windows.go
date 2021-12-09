@@ -17,41 +17,9 @@ type httpTX driver.HttpTransactionType
 // errLostBatch isn't a valid error in windows
 var errLostBatch = errors.New("invalid error")
 
-// Path returns the URL from the request fragment captured in the driver with GET variables excluded.
-// Example:
-// For a request fragment "GET /foo?var=bar HTTP/1.1", this method will return "/foo"
-func (tx httpTX) Path(buffer []byte) []byte {
-	b := tx.RequestFragment
-	bLen := fragmentLen(b)
-
-	var start, end int
-	for start = 0; start < bLen && b[start] != ' '; start++ {
-	}
-
-	start++
-
-	for end = start; end < bLen && b[end] != ' ' && b[end] != '?'; end++ {
-	}
-
-	if start >= end || end > bLen {
-		return nil
-	}
-
-	for i := 0; i < end-start; i++ {
-		buffer[i] = byte(b[start+i])
-	}
-
-	return buffer[:end-start]
-}
-
-// fragmentLen returns the length of a null-terminated request fragment
-func fragmentLen(b tx.RequestFragment) int {
-	for i := 0; i < len(b); i++ {
-		if b[i] == 0 {
-			return i
-		}
-	}
-	return len(b)
+// ReqFragment returns a byte slice containing the first HTTPBufferSize bytes of the request
+func (tx *httpTX) ReqFragment() []byte {
+	return tx.RequestFragment[:]
 }
 
 // StatusClass returns an integer representing the status code class

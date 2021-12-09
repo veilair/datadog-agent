@@ -155,7 +155,7 @@ type HttpTransactionType struct {
 	Tup                ConnTupleType
 	RequestMethod      uint32
 	ResponseStatusCode uint16
-	RequestFragment    [25]int8
+	RequestFragment    [25]uint8
 }
 type ConnTupleType struct {
 	Saddr    [16]uint8

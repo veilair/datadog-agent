@@ -319,7 +319,7 @@ typedef struct _HttpTransactionType {
     CONN_TUPLE_TYPE  tup;
     HTTP_METHOD_TYPE requestMethod;
     uint16_t         responseStatusCode;
-    char             requestFragment[HTTP_BUFFER_SIZE];
+    unsigned char    requestFragment[HTTP_BUFFER_SIZE];
 } HTTP_TRANSACTION_TYPE, * PHTTP_TRANSACTION_TYPE;
 
 #pragma pack()
