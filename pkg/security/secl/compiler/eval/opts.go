@@ -31,3 +31,9 @@ func (o *Opts) WithLegacyFields(fields map[Field]Field) *Opts {
 	o.LegacyFields = fields
 	return o
 }
+
+// WithUserContext set user context
+func (o *Opts) WithUserContext(ctx interface{}) *Opts {
+	o.UserCtx = ctx
+	return o
+}

@@ -36,6 +36,12 @@ func (o *Opts) WithLegacyFields(fields map[eval.Field]eval.Field) *Opts {
 	return o
 }
 
+// WithUserContext set user context
+func (o *Opts) WithUserContext(ctx interface{}) *Opts {
+	o.Opts.WithUserContext(ctx)
+	return o
+}
+
 // WithSupportedDiscarders set supported discarders
 func (o *Opts) WithSupportedDiscarders(discarders map[eval.Field]bool) *Opts {
 	o.SupportedDiscarders = discarders
