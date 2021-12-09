@@ -13,10 +13,10 @@ int size_of_http_transaction_type() {
 */
 import "C"
 import (
+	"errors"
 	"fmt"
 	"net"
 	"sync"
-	"syscall"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
@@ -176,9 +176,9 @@ func iocpIsClosedError(err error) bool {
 	// ERROR_OPERATION_ABORTED or ERROR_ABANDONED_WAIT_0 indicates that the iocp handle was closed
 	// during a call to GetQueuedCompletionStatus.
 	// ERROR_INVALID_HANDLE indicates that the handle was closed prior to the call being made.
-	return err == syscall.Errno(windows.ERROR_OPERATION_ABORTED) ||
-		err == syscall.Errno(windows.ERROR_ABANDONED_WAIT_0) ||
-		err == syscall.Errno(windows.ERROR_INVALID_HANDLE)
+	return errors.Is(err, windows.ERROR_OPERATION_ABORTED) ||
+			errors.Is(err, windows.ERROR_ABANDONED_WAIT_0) ||
+			errors.Is(err, windows.ERROR_INVALID_HANDLE)
 }
 
 func (di *httpDriverInterface) flushPendingTransactions() error {

@@ -9,6 +9,7 @@ package driver
 import "C"
 import (
 	"golang.org/x/sys/windows"
+	"errors"
 	"syscall"
 	"unsafe"
 	"fmt"
@@ -63,7 +64,7 @@ func GetReadBufferIfReady(iocp windows.Handle) (*ReadBuffer, uint32, error) {
 
 	err := windows.GetQueuedCompletionStatus(iocp, &bytesRead, &key, &ol, 0)
 	if err != nil {
-		if err == syscall.Errno(syscall.WAIT_TIMEOUT) {
+		if errors.Is(err, syscall.Errno(syscall.WAIT_TIMEOUT)) {
 			// this indicates that there was no queued completion status, this is fine
 			return nil, 0, nil
 		}
