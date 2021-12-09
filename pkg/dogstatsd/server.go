@@ -509,6 +509,7 @@ func (s *Server) eolEnabled(sourceType packets.SourceType) bool {
 	return false
 }
 
+// workers are running this function in their goroutine
 func (s *Server) parsePackets(batcher *batcher, parser *parser, packets []*packets.Packet, samples []metrics.MetricSample) []metrics.MetricSample {
 	for _, packet := range packets {
 		log.Tracef("Dogstatsd receive: %q", packet.Contents)

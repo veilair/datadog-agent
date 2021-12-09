@@ -170,10 +170,12 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	var defaultCheckID check.ID // empty check.ID is the default sender ID
 
 	// nothing should have been flushed to the serializer/samplers yet
+	// FIXME(remy): reading these vars directly create a race in the unit tests
 	require.Len(demux.aggregator.checkSamplers[defaultCheckID].series, 0)
 
 	// flush the data down the pipeline
 	demux.FlushAggregatedData(time.Now(), true)
+	// FIXME(remy): reading these vars directly create a race in the unit tests
 	require.Len(demux.aggregator.checkSamplers[defaultCheckID].series, 3)
 
 	demux.Stop(false)

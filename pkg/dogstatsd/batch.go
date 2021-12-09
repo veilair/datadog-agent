@@ -17,22 +17,23 @@ type batcher struct {
 	serviceChecks []*metrics.ServiceCheck
 
 	// output channels
-	choutSamples       chan<- []metrics.MetricSample
 	choutEvents        chan<- []*metrics.Event
 	choutServiceChecks chan<- []*metrics.ServiceCheck
 
 	metricSamplePool *metrics.MetricSamplePool
+
+	demux aggregator.Demultiplexer
 }
 
 func newBatcher(demux aggregator.Demultiplexer) *batcher {
 	agg := demux.Aggregator()
-	s, e, sc := agg.GetBufferedChannels()
+	e, sc := agg.GetBufferedChannels()
 	return &batcher{
 		samples:            agg.MetricSamplePool.GetBatch(),
 		metricSamplePool:   agg.MetricSamplePool,
-		choutSamples:       s,
 		choutEvents:        e,
 		choutServiceChecks: sc,
+		demux:              demux,
 	}
 }
 
@@ -55,7 +56,7 @@ func (b *batcher) appendServiceCheck(serviceCheck *metrics.ServiceCheck) {
 func (b *batcher) flushSamples() {
 	if b.samplesCount > 0 {
 		t1 := time.Now()
-		b.choutSamples <- b.samples[:b.samplesCount]
+		b.demux.AddTimeSamples(b.samples[:b.samplesCount])
 		t2 := time.Now()
 		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "metrics")
 

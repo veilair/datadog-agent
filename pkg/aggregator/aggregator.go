@@ -185,8 +185,7 @@ func InitAggregatorWithFlushInterval(s serializer.MetricSerializer, eventPlatfor
 
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics
 type BufferedAggregator struct {
-	bufferedMetricIn       chan []metrics.MetricSample
-	bufferedMetricInWithTs chan []metrics.MetricSample
+	bufferedMetricInWithTs chan []metrics.MetricSample // XXX(remy)
 	bufferedServiceCheckIn chan []*metrics.ServiceCheck
 	bufferedEventIn        chan []*metrics.Event
 
@@ -243,7 +242,6 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 	}
 
 	aggregator := &BufferedAggregator{
-		bufferedMetricIn:       make(chan []metrics.MetricSample, bufferSize),
 		bufferedMetricInWithTs: make(chan []metrics.MetricSample, bufferSize),
 		bufferedServiceCheckIn: make(chan []*metrics.ServiceCheck, bufferSize),
 		bufferedEventIn:        make(chan []*metrics.Event, bufferSize),
@@ -260,7 +258,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 
 		MetricSamplePool: metrics.NewMetricSamplePool(MetricSamplePoolBatchSize),
 
-		statsdSampler:           *NewTimeSampler(bucketSize),
+		statsdSampler:           *NewTimeSampler(0, bucketSize, s),
 		checkSamplers:           make(map[check.ID]*CheckSampler),
 		flushInterval:           flushInterval,
 		serializer:              s,
@@ -302,8 +300,8 @@ func (agg *BufferedAggregator) GetChannels() (chan *metrics.MetricSample, chan m
 }
 
 // GetBufferedChannels returns a channel which can be subsequently used to send MetricSamples, Event or ServiceCheck
-func (agg *BufferedAggregator) GetBufferedChannels() (chan []metrics.MetricSample, chan []*metrics.Event, chan []*metrics.ServiceCheck) {
-	return agg.bufferedMetricIn, agg.bufferedEventIn, agg.bufferedServiceCheckIn
+func (agg *BufferedAggregator) GetBufferedChannels() (chan []*metrics.Event, chan []*metrics.ServiceCheck) {
+	return agg.bufferedEventIn, agg.bufferedServiceCheckIn
 }
 
 // GetBufferedMetricsWithTsChannel returns the channel to send MetricSamples containing their timestamp.
@@ -439,7 +437,8 @@ func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.S
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
-	series, sketches := agg.statsdSampler.flush(float64(before.UnixNano()) / float64(time.Second))
+	var series metrics.Series
+	var sketches metrics.SketchSeriesList
 	for _, checkSampler := range agg.checkSamplers {
 		s, sk := checkSampler.flush()
 		series = append(series, s...)
@@ -765,14 +764,6 @@ func (agg *BufferedAggregator) run() {
 			tlmProcessed.Add(float64(len(ms)), "dogstatsd_metrics")
 			for i := 0; i < len(ms); i++ {
 				agg.addSample(&ms[i], ms[i].Timestamp/float64(time.Second))
-			}
-			agg.MetricSamplePool.PutBatch(ms)
-		case ms := <-agg.bufferedMetricIn:
-			aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
-			tlmProcessed.Add(float64(len(ms)), "dogstatsd_metrics")
-			t := timeNowNano()
-			for i := 0; i < len(ms); i++ {
-				agg.addSample(&ms[i], t)
 			}
 			agg.MetricSamplePool.PutBatch(ms)
 		case serviceChecks := <-agg.bufferedServiceCheckIn:

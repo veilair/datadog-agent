@@ -13,17 +13,73 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
+
+type testAgentDemultiplexer struct {
+	*aggregator.AgentDemultiplexer
+	receivedSamples []metrics.MetricSample
+	sync.Mutex
+}
+
+func (a *testAgentDemultiplexer) AddTimeSamples(samples []metrics.MetricSample) {
+	a.Lock()
+	a.receivedSamples = append(a.receivedSamples, samples...)
+	a.Unlock()
+}
+
+func (a *testAgentDemultiplexer) samples() []metrics.MetricSample {
+	a.Lock()
+	c := make([]metrics.MetricSample, len(a.receivedSamples))
+	for i, s := range a.receivedSamples {
+		c[i] = s
+	}
+	a.Unlock()
+	return c
+}
+
+func (a *testAgentDemultiplexer) waitForSamples(timeout time.Duration) []metrics.MetricSample {
+	ticker := time.NewTicker(10 * time.Millisecond)
+	for {
+		select {
+		case <-ticker.C:
+			s := a.samples()
+			if len(s) > 0 {
+				return s
+			}
+		case <-time.After(timeout):
+			return nil
+		}
+	}
+}
+
+func (a *testAgentDemultiplexer) reset() {
+	a.Lock()
+	a.receivedSamples = a.receivedSamples[0:0]
+	a.Unlock()
+}
+
+func initTestAgentDemultiplexer() *testAgentDemultiplexer {
+	opts := aggregator.DefaultDemultiplexerOptions(nil)
+	opts.FlushInterval = 10 * time.Millisecond
+	opts.DontStartForwarders = true
+	demux := aggregator.InitAndStartAgentDemultiplexer(opts, "hostname")
+	testAgent := testAgentDemultiplexer{
+		AgentDemultiplexer: demux,
+	}
+	return &testAgent
+}
 
 // getAvailableUDPPort requests a random port number and makes sure it is available
 func getAvailableUDPPort() (int, error) {
@@ -50,7 +106,9 @@ func TestNewServer(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	s, err := NewServer(mockDemultiplexer(), nil)
+	demux := mockDemultiplexer()
+	defer demux.Stop(false)
+	s, err := NewServer(demux, nil)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 	assert.NotNil(t, s)
@@ -62,7 +120,9 @@ func TestStopServer(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	s, err := NewServer(mockDemultiplexer(), nil)
+	demux := mockDemultiplexer()
+	defer demux.Stop(false)
+	s, err := NewServer(demux, nil)
 	require.NoError(t, err, "cannot start DSD")
 	s.Stop()
 
@@ -86,8 +146,7 @@ func TestUDPReceive(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	demux := mockDemultiplexer()
-	metricOut, eventOut, serviceOut := demux.Aggregator().GetBufferedChannels()
+	demux := initTestAgentDemultiplexer()
 	s, err := NewServer(demux, nil)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
@@ -99,186 +158,155 @@ func TestUDPReceive(t *testing.T) {
 
 	// Test metric
 	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
-	select {
-	case res := <-metricOut:
-		assert.Equal(t, 1, len(res))
-		sample := res[0]
-		assert.NotNil(t, sample)
-		assert.Equal(t, sample.Name, "daemon")
-		assert.EqualValues(t, sample.Value, 666.0)
-		assert.Equal(t, sample.Mtype, metrics.GaugeType)
-		assert.ElementsMatch(t, sample.Tags, []string{"sometag1:somevalue1", "sometag2:somevalue2"})
-	case <-time.After(100 * time.Second):
-		assert.FailNow(t, "Timeout on receive channel")
-	}
+	samples := demux.waitForSamples(time.Second * 2)
+	require.Equal(t, 1, len(samples))
+	sample := samples[0]
+	assert.NotNil(t, sample)
+	assert.Equal(t, sample.Name, "daemon")
+	assert.EqualValues(t, sample.Value, 666.0)
+	assert.Equal(t, sample.Mtype, metrics.GaugeType)
+	assert.ElementsMatch(t, sample.Tags, []string{"sometag1:somevalue1", "sometag2:somevalue2"})
+	demux.reset()
 
 	conn.Write([]byte("daemon:666|c|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
-	select {
-	case res := <-metricOut:
-		assert.Equal(t, 1, len(res))
-		sample := res[0]
-		assert.NotNil(t, sample)
-		assert.Equal(t, sample.Name, "daemon")
-		assert.EqualValues(t, sample.Value, 666.0)
-		assert.Equal(t, metrics.CounterType, sample.Mtype)
-		assert.Equal(t, 0.5, sample.SampleRate)
-	case <-time.After(100 * time.Second):
-		assert.FailNow(t, "Timeout on receive channel")
-	}
+	samples = demux.waitForSamples(time.Second * 2)
+	require.Equal(t, 1, len(samples))
+	sample = samples[0]
+	assert.NotNil(t, sample)
+	assert.Equal(t, sample.Name, "daemon")
+	assert.EqualValues(t, sample.Value, 666.0)
+	assert.Equal(t, metrics.CounterType, sample.Mtype)
+	assert.Equal(t, 0.5, sample.SampleRate)
+	demux.reset()
 
 	conn.Write([]byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
-	select {
-	case res := <-metricOut:
-		assert.Equal(t, 1, len(res))
-		sample := res[0]
-		assert.NotNil(t, sample)
-		assert.Equal(t, sample.Name, "daemon")
-		assert.EqualValues(t, sample.Value, 666.0)
-		assert.Equal(t, metrics.HistogramType, sample.Mtype)
-		assert.Equal(t, 0.5, sample.SampleRate)
-	case <-time.After(100 * time.Second):
-		assert.FailNow(t, "Timeout on receive channel")
-	}
+	samples = demux.waitForSamples(time.Second * 2)
+	require.Equal(t, 1, len(samples))
+	sample = samples[0]
+	assert.NotNil(t, sample)
+	assert.Equal(t, sample.Name, "daemon")
+	assert.EqualValues(t, sample.Value, 666.0)
+	assert.Equal(t, metrics.HistogramType, sample.Mtype)
+	assert.Equal(t, 0.5, sample.SampleRate)
+	demux.reset()
 
 	conn.Write([]byte("daemon:666|ms|@0.5|#sometag1:somevalue1,sometag2:somevalue2"))
-	select {
-	case res := <-metricOut:
-		assert.Equal(t, 1, len(res))
-		sample := res[0]
-		assert.NotNil(t, sample)
-		assert.Equal(t, sample.Name, "daemon")
-		assert.EqualValues(t, sample.Value, 666.0)
-		assert.Equal(t, metrics.HistogramType, sample.Mtype)
-		assert.Equal(t, 0.5, sample.SampleRate)
-	case <-time.After(2 * time.Second):
-		assert.FailNow(t, "Timeout on receive channel")
-	}
+	samples = demux.waitForSamples(time.Second * 2)
+	require.Equal(t, 1, len(samples))
+	sample = samples[0]
+	assert.NotNil(t, sample)
+	assert.Equal(t, sample.Name, "daemon")
+	assert.EqualValues(t, sample.Value, 666.0)
+	assert.Equal(t, metrics.HistogramType, sample.Mtype)
+	assert.Equal(t, 0.5, sample.SampleRate)
+	demux.reset()
 
 	conn.Write([]byte("daemon_set:abc|s|#sometag1:somevalue1,sometag2:somevalue2"))
-	select {
-	case res := <-metricOut:
-		assert.Equal(t, 1, len(res))
-		sample := res[0]
-		assert.NotNil(t, sample)
-		assert.Equal(t, sample.Name, "daemon_set")
-		assert.Equal(t, sample.RawValue, "abc")
-		assert.Equal(t, sample.Mtype, metrics.SetType)
-	case <-time.After(2 * time.Second):
-		assert.FailNow(t, "Timeout on receive channel")
-	}
+	samples = demux.waitForSamples(time.Second * 2)
+	require.Equal(t, 1, len(samples))
+	sample = samples[0]
+	assert.NotNil(t, sample)
+	assert.Equal(t, sample.Name, "daemon_set")
+	assert.Equal(t, sample.RawValue, "abc")
+	assert.Equal(t, sample.Mtype, metrics.SetType)
+	demux.reset()
 
 	// multi-metric packet
 	conn.Write([]byte("daemon1:666|c\ndaemon2:1000|c"))
-	select {
-	case res := <-metricOut:
-		assert.Equal(t, 2, len(res))
-		sample1 := res[0]
-		assert.NotNil(t, sample1)
-		assert.Equal(t, sample1.Name, "daemon1")
-		assert.EqualValues(t, sample1.Value, 666.0)
-		assert.Equal(t, sample1.Mtype, metrics.CounterType)
-		sample2 := res[1]
-		assert.NotNil(t, sample2)
-		assert.Equal(t, sample2.Name, "daemon2")
-		assert.EqualValues(t, sample2.Value, 1000.0)
-		assert.Equal(t, sample2.Mtype, metrics.CounterType)
-	case <-time.After(2 * time.Second):
-		assert.FailNow(t, "Timeout on receive channel")
-	}
+	samples = demux.waitForSamples(time.Second * 2)
+	require.Equal(t, 2, len(samples))
+	sample1 := samples[0]
+	assert.NotNil(t, sample1)
+	assert.Equal(t, sample1.Name, "daemon1")
+	assert.EqualValues(t, sample1.Value, 666.0)
+	assert.Equal(t, sample1.Mtype, metrics.CounterType)
+	sample2 := samples[1]
+	assert.NotNil(t, sample2)
+	assert.Equal(t, sample2.Name, "daemon2")
+	assert.EqualValues(t, sample2.Value, 1000.0)
+	assert.Equal(t, sample2.Mtype, metrics.CounterType)
+	demux.reset()
 
 	// multi-value packet
 	conn.Write([]byte("daemon1:666:123|c\ndaemon2:1000|c"))
-	select {
-	case res := <-metricOut:
-		assert.Equal(t, 3, len(res))
-		sample1 := res[0]
-		assert.NotNil(t, sample1)
-		assert.Equal(t, sample1.Name, "daemon1")
-		assert.EqualValues(t, sample1.Value, 666.0)
-		assert.Equal(t, sample1.Mtype, metrics.CounterType)
-		sample2 := res[1]
-		assert.NotNil(t, sample2)
-		assert.Equal(t, sample2.Name, "daemon1")
-		assert.EqualValues(t, sample2.Value, 123.0)
-		assert.Equal(t, sample2.Mtype, metrics.CounterType)
-		sample3 := res[2]
-		assert.NotNil(t, sample3)
-		assert.Equal(t, sample3.Name, "daemon2")
-		assert.EqualValues(t, sample3.Value, 1000.0)
-		assert.Equal(t, sample3.Mtype, metrics.CounterType)
-	case <-time.After(2 * time.Second):
-		assert.FailNow(t, "Timeout on receive channel")
-	}
+	samples = demux.waitForSamples(time.Second * 2)
+	require.Equal(t, 3, len(samples))
+	sample1 = samples[0]
+	assert.NotNil(t, sample1)
+	assert.Equal(t, sample1.Name, "daemon1")
+	assert.EqualValues(t, sample1.Value, 666.0)
+	assert.Equal(t, sample1.Mtype, metrics.CounterType)
+	sample2 = samples[1]
+	assert.NotNil(t, sample2)
+	assert.Equal(t, sample2.Name, "daemon1")
+	assert.EqualValues(t, sample2.Value, 123.0)
+	assert.Equal(t, sample2.Mtype, metrics.CounterType)
+	sample3 := samples[2]
+	assert.NotNil(t, sample3)
+	assert.Equal(t, sample3.Name, "daemon2")
+	assert.EqualValues(t, sample3.Value, 1000.0)
+	assert.Equal(t, sample3.Mtype, metrics.CounterType)
+	demux.reset()
 
 	// multi-value packet with skip empty
 	conn.Write([]byte("daemon1::666::123::::|c\ndaemon2:1000|c"))
-	select {
-	case res := <-metricOut:
-		assert.Equal(t, 3, len(res))
-		sample1 := res[0]
-		assert.NotNil(t, sample1)
-		assert.Equal(t, sample1.Name, "daemon1")
-		assert.EqualValues(t, sample1.Value, 666.0)
-		assert.Equal(t, sample1.Mtype, metrics.CounterType)
-		sample2 := res[1]
-		assert.NotNil(t, sample2)
-		assert.Equal(t, sample2.Name, "daemon1")
-		assert.EqualValues(t, sample2.Value, 123.0)
-		assert.Equal(t, sample2.Mtype, metrics.CounterType)
-		sample3 := res[2]
-		assert.NotNil(t, sample3)
-		assert.Equal(t, sample3.Name, "daemon2")
-		assert.EqualValues(t, sample3.Value, 1000.0)
-		assert.Equal(t, sample3.Mtype, metrics.CounterType)
-	case <-time.After(2 * time.Second):
-		assert.FailNow(t, "Timeout on receive channel")
-	}
-	// slightly malformed multi-metric packet, should still be parsed in whole
+	samples = demux.waitForSamples(time.Second * 2)
+	require.Equal(t, 3, len(samples))
+	sample1 = samples[0]
+	assert.NotNil(t, sample1)
+	assert.Equal(t, sample1.Name, "daemon1")
+	assert.EqualValues(t, sample1.Value, 666.0)
+	assert.Equal(t, sample1.Mtype, metrics.CounterType)
+	sample2 = samples[1]
+	assert.NotNil(t, sample2)
+	assert.Equal(t, sample2.Name, "daemon1")
+	assert.EqualValues(t, sample2.Value, 123.0)
+	assert.Equal(t, sample2.Mtype, metrics.CounterType)
+	sample3 = samples[2]
+	assert.NotNil(t, sample3)
+	assert.Equal(t, sample3.Name, "daemon2")
+	assert.EqualValues(t, sample3.Value, 1000.0)
+	assert.Equal(t, sample3.Mtype, metrics.CounterType)
+	demux.reset()
+
+	//	// slightly malformed multi-metric packet, should still be parsed in whole
 	conn.Write([]byte("daemon1:666|c\n\ndaemon2:1000|c\n"))
-	select {
-	case res := <-metricOut:
-		assert.Equal(t, 2, len(res))
-		sample1 := res[0]
-		assert.NotNil(t, sample1)
-		assert.Equal(t, sample1.Name, "daemon1")
-		assert.EqualValues(t, sample1.Value, 666.0)
-		assert.Equal(t, sample1.Mtype, metrics.CounterType)
-		sample2 := res[1]
-		assert.NotNil(t, sample2)
-		assert.Equal(t, sample2.Name, "daemon2")
-		assert.EqualValues(t, sample2.Value, 1000.0)
-		assert.Equal(t, sample2.Mtype, metrics.CounterType)
-	case <-time.After(2 * time.Second):
-		assert.FailNow(t, "Timeout on receive channel")
-	}
+	samples = demux.waitForSamples(time.Second * 2)
+	require.Equal(t, 2, len(samples))
+	sample1 = samples[0]
+	assert.NotNil(t, sample1)
+	assert.Equal(t, sample1.Name, "daemon1")
+	assert.EqualValues(t, sample1.Value, 666.0)
+	assert.Equal(t, sample1.Mtype, metrics.CounterType)
+	sample2 = samples[1]
+	assert.NotNil(t, sample2)
+	assert.Equal(t, sample2.Name, "daemon2")
+	assert.EqualValues(t, sample2.Value, 1000.0)
+	assert.Equal(t, sample2.Mtype, metrics.CounterType)
+	demux.reset()
 
 	// Test erroneous metric
 	conn.Write([]byte("daemon1:666a|g\ndaemon2:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
-	select {
-	case res := <-metricOut:
-		assert.Equal(t, 1, len(res))
-		sample := res[0]
-
-		assert.NotNil(t, sample)
-		assert.Equal(t, sample.Name, "daemon2")
-	case <-time.After(2 * time.Second):
-		assert.FailNow(t, "Timeout on receive channel")
-	}
+	samples = demux.waitForSamples(time.Second * 2)
+	require.Equal(t, 1, len(samples))
+	sample = samples[0]
+	assert.NotNil(t, sample)
+	assert.Equal(t, sample.Name, "daemon2")
+	demux.reset()
 
 	// Test empty metric
 	conn.Write([]byte("daemon1:|g\ndaemon2:666|g|#sometag1:somevalue1,sometag2:somevalue2\ndaemon3: :1:|g"))
-	select {
-	case res := <-metricOut:
-		assert.Equal(t, 1, len(res))
-		sample := res[0]
-
-		assert.NotNil(t, sample)
-		assert.Equal(t, sample.Name, "daemon2")
-	case <-time.After(2 * time.Second):
-		assert.FailNow(t, "Timeout on receive channel")
-	}
+	samples = demux.waitForSamples(time.Second * 2)
+	require.Equal(t, 1, len(samples))
+	sample = samples[0]
+	assert.NotNil(t, sample)
+	assert.Equal(t, sample.Name, "daemon2")
 
 	// Test Service Check
+	// ------------------
+
+	eventOut, serviceOut := demux.Aggregator().GetBufferedChannels()
+
 	conn.Write([]byte("_sc|agent.up|0|d:12345|h:localhost|m:this is fine|#sometag1:somevalyyue1,sometag2:somevalue2"))
 	select {
 	case res := <-serviceOut:
@@ -300,6 +328,8 @@ func TestUDPReceive(t *testing.T) {
 	}
 
 	// Test Event
+	// ----------
+
 	conn.Write([]byte("_e{10,10}:test title|test\\ntext|t:warning|d:12345|p:low|h:some.host|k:aggKey|s:source test|#tag1,tag2:test"))
 	select {
 	case res := <-eventOut:
@@ -349,6 +379,7 @@ func TestUDPForward(t *testing.T) {
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
 	demux := mockDemultiplexer()
+	defer demux.Stop(false)
 	s, err := NewServer(demux, nil)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
@@ -383,8 +414,8 @@ func TestHistToDist(t *testing.T) {
 	config.Datadog.SetDefault("histogram_copy_to_distribution_prefix", "dist.")
 	defer config.Datadog.SetDefault("histogram_copy_to_distribution_prefix", "")
 
-	demux := mockDemultiplexer()
-	metricOut, _, _ := demux.Aggregator().GetBufferedChannels()
+	demux := initTestAgentDemultiplexer()
+	defer demux.Stop(false)
 	s, err := NewServer(demux, nil)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
@@ -396,23 +427,21 @@ func TestHistToDist(t *testing.T) {
 
 	// Test metric
 	conn.Write([]byte("daemon:666|h|#sometag1:somevalue1,sometag2:somevalue2"))
-	select {
-	case histMetrics := <-metricOut:
-		assert.Equal(t, 2, len(histMetrics))
-		histMetric := histMetrics[0]
-		distMetric := histMetrics[1]
-		assert.NotNil(t, histMetric)
-		assert.Equal(t, histMetric.Name, "daemon")
-		assert.EqualValues(t, histMetric.Value, 666.0)
-		assert.Equal(t, metrics.HistogramType, histMetric.Mtype)
+	time.Sleep(time.Millisecond * 200) // give some time to the socket write/read
+	samples := demux.waitForSamples(time.Second * 2)
+	require.Equal(t, 2, len(samples))
+	histMetric := samples[0]
+	distMetric := samples[1]
+	assert.NotNil(t, histMetric)
+	assert.Equal(t, histMetric.Name, "daemon")
+	assert.EqualValues(t, histMetric.Value, 666.0)
+	assert.Equal(t, metrics.HistogramType, histMetric.Mtype)
 
-		assert.NotNil(t, distMetric)
-		assert.Equal(t, distMetric.Name, "dist.daemon")
-		assert.EqualValues(t, distMetric.Value, 666.0)
-		assert.Equal(t, metrics.DistributionType, distMetric.Mtype)
-	case <-time.After(2 * time.Second):
-		assert.FailNow(t, "Timeout on receive channel")
-	}
+	assert.NotNil(t, distMetric)
+	assert.Equal(t, distMetric.Name, "dist.daemon")
+	assert.EqualValues(t, distMetric.Value, 666.0)
+	assert.Equal(t, metrics.DistributionType, distMetric.Mtype)
+	demux.reset()
 }
 
 func TestScanLines(t *testing.T) {
@@ -476,8 +505,7 @@ func TestE2EParsing(t *testing.T) {
 	require.NoError(t, err)
 	config.Datadog.SetDefault("dogstatsd_port", port)
 
-	demux := mockDemultiplexer()
-	metricOut, _, _ := demux.Aggregator().GetBufferedChannels()
+	demux := initTestAgentDemultiplexer()
 	s, err := NewServer(demux, nil)
 	require.NoError(t, err, "cannot start DSD")
 
@@ -488,12 +516,10 @@ func TestE2EParsing(t *testing.T) {
 
 	// Test metric
 	conn.Write([]byte("daemon:666|g|#foo:bar\ndaemon:666|g|#foo:bar"))
-	select {
-	case res := <-metricOut:
-		assert.Equal(t, len(res), 2)
-	case <-time.After(2 * time.Second):
-		assert.FailNow(t, "Timeout on receive channel")
-	}
+	samples := demux.waitForSamples(time.Second * 2)
+	assert.Equal(t, 2, len(samples))
+	demux.reset()
+	demux.Stop(false)
 	s.Stop()
 
 	// EOL enabled
@@ -501,20 +527,17 @@ func TestE2EParsing(t *testing.T) {
 	// reset to default
 	defer config.Datadog.SetDefault("dogstatsd_eol_required", []string{})
 
-	demux = mockDemultiplexer()
-	metricOut, _, _ = demux.Aggregator().GetBufferedChannels()
+	demux = initTestAgentDemultiplexer()
 	s, err = NewServer(demux, nil)
 	require.NoError(t, err, "cannot start DSD")
-	defer s.Stop()
 
 	// Test metric expecting an EOL
 	conn.Write([]byte("daemon:666|g|#foo:bar\ndaemon:666|g|#foo:bar"))
-	select {
-	case res := <-metricOut:
-		assert.Equal(t, len(res), 1)
-	case <-time.After(2 * time.Second):
-		assert.FailNow(t, "Timeout on receive channel")
-	}
+	samples = demux.waitForSamples(time.Second * 2)
+	require.Equal(t, 1, len(samples))
+	s.Stop()
+	demux.reset()
+	demux.Stop(false)
 }
 
 func TestExtraTags(t *testing.T) {
@@ -524,8 +547,7 @@ func TestExtraTags(t *testing.T) {
 	config.Datadog.SetDefault("dogstatsd_tags", []string{"sometag3:somevalue3"})
 	defer config.Datadog.SetDefault("dogstatsd_tags", []string{})
 
-	demux := mockDemultiplexer()
-	metricOut, _, _ := demux.Aggregator().GetBufferedChannels()
+	demux := initTestAgentDemultiplexer()
 	s, err := NewServer(demux, nil)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
@@ -537,23 +559,20 @@ func TestExtraTags(t *testing.T) {
 
 	// Test metric
 	conn.Write([]byte("daemon:666|g|#sometag1:somevalue1,sometag2:somevalue2"))
-	select {
-	case res := <-metricOut:
-		assert.Equal(t, 1, len(res))
-		sample := res[0]
-		assert.NotNil(t, sample)
-		assert.Equal(t, sample.Name, "daemon")
-		assert.EqualValues(t, sample.Value, 666.0)
-		assert.Equal(t, sample.Mtype, metrics.GaugeType)
-		assert.ElementsMatch(t, sample.Tags, []string{"sometag1:somevalue1", "sometag2:somevalue2", "sometag3:somevalue3"})
-	case <-time.After(2 * time.Second):
-		assert.FailNow(t, "Timeout on receive channel")
-	}
+	samples := demux.waitForSamples(time.Second * 2)
+	require.Equal(t, 1, len(samples))
+	sample := samples[0]
+	assert.NotNil(t, sample)
+	assert.Equal(t, sample.Name, "daemon")
+	assert.EqualValues(t, sample.Value, 666.0)
+	assert.Equal(t, sample.Mtype, metrics.GaugeType)
+	assert.ElementsMatch(t, sample.Tags, []string{"sometag1:somevalue1", "sometag2:somevalue2", "sometag3:somevalue3"})
 }
 
 func TestDebugStatsSpike(t *testing.T) {
 	assert := assert.New(t)
 	demux := mockDemultiplexer()
+	defer demux.Stop(false)
 	s, err := NewServer(demux, nil)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
@@ -595,6 +614,7 @@ func TestDebugStatsSpike(t *testing.T) {
 
 func TestDebugStats(t *testing.T) {
 	demux := mockDemultiplexer()
+	defer demux.Stop(false)
 	s, err := NewServer(demux, nil)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
@@ -677,7 +697,9 @@ func TestNoMappingsConfig(t *testing.T) {
 	err = config.Datadog.ReadConfig(strings.NewReader(datadogYaml))
 	require.NoError(t, err)
 
-	s, err := NewServer(mockDemultiplexer(), nil)
+	demux := mockDemultiplexer()
+	defer demux.Stop(false)
+	s, err := NewServer(demux, nil)
 	require.NoError(t, err, "cannot start DSD")
 
 	assert.Nil(t, s.mapper)
@@ -789,7 +811,9 @@ dogstatsd_mapper_profiles:
 			require.NoError(t, err, "Case `%s` failed. getAvailableUDPPort should not return error %v", scenario.name, err)
 			config.Datadog.SetDefault("dogstatsd_port", port)
 
-			s, err := NewServer(mockDemultiplexer(), nil)
+			demux := mockDemultiplexer()
+			defer demux.Stop(false)
+			s, err := NewServer(demux, nil)
 			require.NoError(t, err, "Case `%s` failed. NewServer should not return error %v", scenario.name, err)
 
 			assert.Equal(t, config.Datadog.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize, "Case `%s` failed. cache_size `%s` should be `%s`", scenario.name, config.Datadog.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize)
@@ -864,7 +888,9 @@ func TestNewServerExtraTags(t *testing.T) {
 func TestProcessedMetricsOrigin(t *testing.T) {
 	assert := assert.New(t)
 
-	s, err := NewServer(mockDemultiplexer(), nil)
+	demux := mockDemultiplexer()
+	defer demux.Stop(false)
+	s, err := NewServer(demux, nil)
 	assert.NoError(err, "starting the DogStatsD server shouldn't fail")
 	s.Stop()
 

@@ -6,9 +6,12 @@
 package aggregator
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -20,6 +23,14 @@ type SerieSignature struct {
 	nameSuffix string
 }
 
+type tsSample struct {
+	sample    *metrics.MetricSample
+	timestamp float64
+}
+
+// TimeSamplerID is a type ID for sharded time samplers.
+type TimeSamplerID int
+
 // TimeSampler aggregates metrics by buckets of 'interval' seconds
 type TimeSampler struct {
 	interval                    int64
@@ -28,20 +39,41 @@ type TimeSampler struct {
 	counterLastSampledByContext map[ckey.ContextKey]float64
 	lastCutOffTime              int64
 	sketchMap                   sketchMap
+
+	// id is a number to differentiate multiple time samplers
+	// since we start running more than one with the demultiplexer introduction
+	id TimeSamplerID
+
+	serializer serializer.MetricSerializer
+
+	stopChan chan struct{}
+
+	// TODO(remy): comment me
+	samples chan tsSample
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
-func NewTimeSampler(interval int64) *TimeSampler {
+func NewTimeSampler(id TimeSamplerID, interval int64, serializer serializer.MetricSerializer) *TimeSampler {
 	if interval == 0 {
 		interval = bucketSize
 	}
-	return &TimeSampler{
+	log.Infof("Creating TimeSample #%d", id)
+
+	ts := &TimeSampler{
 		interval:                    interval,
 		contextResolver:             newTimestampContextResolver(),
 		metricsByTimestamp:          map[int64]metrics.ContextMetrics{},
 		counterLastSampledByContext: map[ckey.ContextKey]float64{},
 		sketchMap:                   make(sketchMap),
+		id:                          id,
+		stopChan:                    make(chan struct{}),
+		serializer:                  serializer,
+		samples:                     make(chan tsSample, 100), // XXX(remy): size
 	}
+
+	go ts.processLoop(time.Second * time.Duration(interval))
+
+	return ts
 }
 
 func (s *TimeSampler) calculateBucketStart(timestamp float64) int64 {
@@ -54,6 +86,13 @@ func (s *TimeSampler) isBucketStillOpen(bucketStartTimestamp, timestamp int64) b
 
 // Add the metricSample to the correct bucket
 func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp float64) {
+	// XXX(remy): temporary telemetry tag to know in which samplers the sample has been distributed
+	//	metricSample.Tags = append(metricSample.Tags, fmt.Sprintf("timesampler:%d", s.id))
+
+	s.samples <- tsSample{sample: metricSample, timestamp: timestamp}
+}
+
+func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float64) {
 	// Keep track of the context
 	contextKey := s.contextResolver.trackContext(metricSample, timestamp)
 	bucketStart := s.calculateBucketStart(timestamp)
@@ -75,7 +114,42 @@ func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp fl
 
 		// Add sample to bucket
 		if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval, nil); err != nil {
-			log.Debugf("Ignoring sample '%s' on host '%s' and tags '%s': %s", metricSample.Name, metricSample.Host, metricSample.Tags, err)
+			log.Debugf("TimeSampler #%d Ignoring sample '%s' on host '%s' and tags '%s': %s", s.id, metricSample.Name, metricSample.Host, metricSample.Tags, err)
+		}
+	}
+}
+
+// Stop stops the time sampler. It can't be re-used after being stop,
+// use NewTimeSampler instead.
+func (s *TimeSampler) Stop() {
+	s.stopChan <- struct{}{}
+}
+
+// We process all receivend samples in the `select`, but we also process a flush action,
+// meaning that the time sampler will not process any sample while it is flushing.
+// Note that it was the same design in the BufferedAggregator (but at the aggregator level,
+// not sampler level).
+// If we want to move to a design where we can flush while we are processing samples,
+// we could consider implementing double-buffering or locking for every sample reception.
+func (s *TimeSampler) processLoop(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	for {
+		select {
+		case <-s.stopChan:
+			return
+		case tss := <-s.samples:
+			s.sample(tss.sample, tss.timestamp)
+		case t := <-ticker.C:
+			series, sketches := s.flush(float64(t.Unix())) // XXX(remy): is this conversation correct? note that it is in second
+			// XXX(remy): better error management
+			if s.serializer != nil {
+				if err := s.serializer.SendSeries(series); err != nil {
+					log.Errorf("flushLoop: %+v", err)
+				}
+				if err := s.serializer.SendSketch(sketches); err != nil {
+					log.Errorf("flushLoop: %+v", err)
+				}
+			}
 		}
 	}
 }
@@ -142,7 +216,7 @@ func (s *TimeSampler) flushSeries(cutoffTime int64) metrics.Series {
 			// Resolve context and populate new Serie
 			context, ok := s.contextResolver.get(serie.ContextKey)
 			if !ok {
-				log.Errorf("Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", serie.ContextKey)
+				log.Errorf("TimeSampler #%d Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", s.id, serie.ContextKey)
 				continue
 			}
 			serie.Name = context.Name + serie.NameSuffix
@@ -158,7 +232,7 @@ func (s *TimeSampler) flushSeries(cutoffTime int64) metrics.Series {
 	return series
 }
 
-func (s TimeSampler) flushSketches(cutoffTime int64) metrics.SketchSeriesList {
+func (s *TimeSampler) flushSketches(cutoffTime int64) metrics.SketchSeriesList {
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
 	sketches := make(metrics.SketchSeriesList, 0, len(pointsByCtx))
 

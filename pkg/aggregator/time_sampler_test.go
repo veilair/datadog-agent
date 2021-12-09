@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -28,14 +29,16 @@ func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 
 // TimeSampler
 func TestCalculateBucketStart(t *testing.T) {
-	sampler := NewTimeSampler(10)
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, &serializer.MockSerializer{})
+	defer sampler.Stop()
 
 	assert.Equal(t, int64(123450), sampler.calculateBucketStart(123456.5))
 	assert.Equal(t, int64(123460), sampler.calculateBucketStart(123460.5))
 }
 
 func TestBucketSampling(t *testing.T) {
-	sampler := NewTimeSampler(10)
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, &serializer.MockSerializer{})
+	defer sampler.Stop()
 
 	mSample := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -44,9 +47,9 @@ func TestBucketSampling(t *testing.T) {
 		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
-	sampler.addSample(&mSample, 12345.0)
-	sampler.addSample(&mSample, 12355.0)
-	sampler.addSample(&mSample, 12365.0)
+	sampler.sample(&mSample, 12345.0)
+	sampler.sample(&mSample, 12355.0)
+	sampler.sample(&mSample, 12365.0)
 
 	series, _ := sampler.flush(12360.0)
 
@@ -66,7 +69,8 @@ func TestBucketSampling(t *testing.T) {
 }
 
 func TestContextSampling(t *testing.T) {
-	sampler := NewTimeSampler(10)
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, &serializer.MockSerializer{})
+	defer sampler.Stop()
 
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name1",
@@ -91,9 +95,9 @@ func TestContextSampling(t *testing.T) {
 		SampleRate: 1,
 	}
 
-	sampler.addSample(&mSample1, 12346.0)
-	sampler.addSample(&mSample2, 12346.0)
-	sampler.addSample(&mSample3, 12346.0)
+	sampler.sample(&mSample1, 12346.0)
+	sampler.sample(&mSample2, 12346.0)
+	sampler.sample(&mSample3, 12346.0)
 
 	series, _ := sampler.flush(12360.0)
 
@@ -130,7 +134,9 @@ func TestContextSampling(t *testing.T) {
 }
 
 func TestCounterExpirySeconds(t *testing.T) {
-	sampler := NewTimeSampler(10)
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, &serializer.MockSerializer{})
+	defer sampler.Stop()
+
 	math.Abs(1)
 	sampleCounter1 := &metrics.MetricSample{
 		Name:       "my.counter1",
@@ -158,9 +164,9 @@ func TestCounterExpirySeconds(t *testing.T) {
 		SampleRate: 1,
 	}
 
-	sampler.addSample(sampleCounter1, 1004.0)
-	sampler.addSample(sampleCounter2, 1002.0)
-	sampler.addSample(sampleGauge3, 1003.0)
+	sampler.sample(sampleCounter1, 1004.0)
+	sampler.sample(sampleCounter2, 1002.0)
+	sampler.sample(sampleGauge3, 1003.0)
 	// counterLastSampledByContext should be populated when a sample is added
 	assert.Equal(t, 2, len(sampler.counterLastSampledByContext))
 
@@ -210,9 +216,9 @@ func TestCounterExpirySeconds(t *testing.T) {
 		SampleRate: 1,
 	}
 
-	sampler.addSample(sampleCounter2, 1034.0)
-	sampler.addSample(sampleCounter1, 1010.0)
-	sampler.addSample(sampleCounter2, 1020.0)
+	sampler.sample(sampleCounter2, 1034.0)
+	sampler.sample(sampleCounter1, 1010.0)
+	sampler.sample(sampleCounter2, 1020.0)
 
 	series, _ = sampler.flush(1040.0)
 
@@ -267,12 +273,12 @@ func TestSketch(t *testing.T) {
 	)
 
 	var (
-		sampler = NewTimeSampler(0)
+		sampler = NewTimeSampler(TimeSamplerID(0), 10, &serializer.MockSerializer{})
 
 		insert = func(t *testing.T, ts float64, ctx Context, values ...float64) {
 			t.Helper()
 			for _, v := range values {
-				sampler.addSample(&metrics.MetricSample{
+				sampler.sample(&metrics.MetricSample{
 					Name:       ctx.Name,
 					Tags:       ctx.Tags,
 					Host:       ctx.Host,
@@ -283,6 +289,8 @@ func TestSketch(t *testing.T) {
 			}
 		}
 	)
+
+	defer sampler.Stop()
 
 	assert.EqualValues(t, defaultBucketSize, sampler.interval,
 		"interval should default to 10")
@@ -330,8 +338,8 @@ func TestSketch(t *testing.T) {
 }
 
 func TestSketchBucketSampling(t *testing.T) {
-
-	sampler := NewTimeSampler(10)
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, &serializer.MockSerializer{})
+	defer sampler.Stop()
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name",
@@ -347,11 +355,11 @@ func TestSketchBucketSampling(t *testing.T) {
 		Tags:       []string{"a", "b"},
 		SampleRate: 1,
 	}
-	sampler.addSample(&mSample1, 10001)
-	sampler.addSample(&mSample2, 10002)
-	sampler.addSample(&mSample1, 10011)
-	sampler.addSample(&mSample2, 10012)
-	sampler.addSample(&mSample1, 10021)
+	sampler.sample(&mSample1, 10001)
+	sampler.sample(&mSample2, 10002)
+	sampler.sample(&mSample1, 10011)
+	sampler.sample(&mSample2, 10012)
+	sampler.sample(&mSample1, 10021)
 
 	_, flushed := sampler.flush(10020.0)
 	expSketch := &quantile.Sketch{}
@@ -374,7 +382,8 @@ func TestSketchBucketSampling(t *testing.T) {
 }
 
 func TestSketchContextSampling(t *testing.T) {
-	sampler := NewTimeSampler(10)
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, &serializer.MockSerializer{})
+	defer sampler.Stop()
 
 	mSample1 := metrics.MetricSample{
 		Name:       "test.metric.name1",
@@ -390,8 +399,8 @@ func TestSketchContextSampling(t *testing.T) {
 		Tags:       []string{"a", "c"},
 		SampleRate: 1,
 	}
-	sampler.addSample(&mSample1, 10011)
-	sampler.addSample(&mSample2, 10011)
+	sampler.sample(&mSample1, 10011)
+	sampler.sample(&mSample2, 10011)
 
 	_, flushed := sampler.flush(10020)
 	expSketch := &quantile.Sketch{}
@@ -424,7 +433,8 @@ func TestSketchContextSampling(t *testing.T) {
 }
 
 func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
-	sampler := NewTimeSampler(10)
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, &serializer.MockSerializer{})
+	defer sampler.Stop()
 
 	dSample1 := metrics.MetricSample{
 		Name:       "distribution.metric.name1",
@@ -433,9 +443,9 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 		Tags:       []string{"a", "b"},
 		SampleRate: 1,
 	}
-	sampler.addSample(&dSample1, 12345.0)
-	sampler.addSample(&dSample1, 12355.0)
-	sampler.addSample(&dSample1, 12365.0)
+	sampler.sample(&dSample1, 12345.0)
+	sampler.sample(&dSample1, 12355.0)
+	sampler.sample(&dSample1, 12365.0)
 
 	mSample := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -444,9 +454,9 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 		Tags:       []string{"foo", "bar"},
 		SampleRate: 1,
 	}
-	sampler.addSample(&mSample, 12345.0)
-	sampler.addSample(&mSample, 12355.0)
-	sampler.addSample(&mSample, 12365.0)
+	sampler.sample(&mSample, 12345.0)
+	sampler.sample(&mSample, 12355.0)
+	sampler.sample(&mSample, 12365.0)
 
 	series, sketches := sampler.flush(12360.0)
 
@@ -480,7 +490,9 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 }
 
 func BenchmarkTimeSampler(b *testing.B) {
-	sampler := NewTimeSampler(10)
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, &serializer.MockSerializer{})
+	defer sampler.Stop()
+
 	sample := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
@@ -490,6 +502,6 @@ func BenchmarkTimeSampler(b *testing.B) {
 		Timestamp:  12345.0,
 	}
 	for n := 0; n < b.N; n++ {
-		sampler.addSample(&sample, 12345.0)
+		sampler.sample(&sample, 12345.0)
 	}
 }
