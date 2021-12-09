@@ -124,3 +124,20 @@ func nsTimestampToFloat(ns uint64) float64 {
 	}
 	return float64(ns << shift)
 }
+
+func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourcePort int, destPort int, path string, code int, latency time.Duration) httpTX {
+	var tx httpTX
+
+	reqFragment := fmt.Sprintf("GET %s HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0", path)
+	latencyNS := _Ctype_ulonglong(uint64(latency))
+	tx.request_started = 1
+	tx.response_last_seen = tx.request_started + latencyNS
+	tx.response_status_code = _Ctype_ushort(code)
+	tx.request_fragment = requestFragment([]byte(reqFragment))
+	tx.tup.saddr_l = _Ctype_ulonglong(binary.LittleEndian.Uint32(source.Bytes()))
+	tx.tup.sport = _Ctype_ushort(sourcePort)
+	tx.tup.daddr_l = _Ctype_ulonglong(binary.LittleEndian.Uint32(dest.Bytes()))
+	tx.tup.dport = _Ctype_ushort(destPort)
+
+	return tx
+}

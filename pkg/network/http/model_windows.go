@@ -5,8 +5,11 @@ package http
 import (
 	"encoding/binary"
 	"errors"
+	"time"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 const HTTPBufferSize = driver.HttpBufferSize
@@ -95,4 +98,31 @@ func nsTimestampToFloat(ns uint64) float64 {
 		shift++
 	}
 	return float64(ns << shift)
+}
+
+// generateIPv4HTTPTransaction is a testing helper function required for the http_statkeeper tests
+func generateIPv4HTTPTransaction(source util.Address, dest util.Address, sourcePort int, destPort int, path string, code int, latency time.Duration) httpTX {
+	var tx httpTX
+
+	reqFragment := fmt.Sprintf("GET %s HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0", path)
+	latencyNS := uint64(uint64(latency))
+	src := source.Bytes()
+	dst := dest.Bytes()
+
+	tx.RequestStarted = 1
+	tx.ResponseLastSeen = tx.RequestStarted + latencyNS
+	tx.ResponseStatusCode = uint16(code)
+	for i := 0; i < len(tx.RequestFragment) && i < len(reqFragment); i++ {
+		tx.RequestFragment[i] = uint8(reqFragment[i])
+	}
+	for i:= 0; i < len(tx.Tup.Saddr) && i < len(src); i++ {
+		tx.Tup.Saddr[i] = src[i]
+	}
+	for i:= 0; i < len(tx.Tup.Daddr) && i < len(dst); i++ {
+		tx.Tup.Daddr[i] = dst[i]
+	}
+	tx.Tup.Sport = uint16(sourcePort)
+	tx.Tup.Dport = uint16(destPort)
+
+	return tx
 }
