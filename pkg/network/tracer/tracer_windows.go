@@ -176,15 +176,15 @@ func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
 }
 
 func newHttpMonitor(c *config.Config) http.Monitor {
-	if !config.EnableHTTPMonitoring {
+	if !c.EnableHTTPMonitoring {
 		return http.NewNoOpMonitor()
 	}
 
-	httpMonitor, err = http.NewDriverMonitor(config)
+	monitor, err := http.NewDriverMonitor(c)
 	if err != nil {
 		log.Errorf("could not instantiate http monitor: %s", err)
 		return http.NewNoOpMonitor()
 	}
-	httpMonitor.Start()
-	return httpMonitor
+	monitor.Start()
+	return monitor
 }

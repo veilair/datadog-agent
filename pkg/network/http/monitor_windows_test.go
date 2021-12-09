@@ -24,8 +24,15 @@ func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int) {
 	srvDoneFn := testutil.HTTPServer(t, serverAddr, false)
 	defer srvDoneFn()
 
-	monitor, err := NewDriverMonitor(config.New())
+	di, err := newDriverInterface()
 	require.NoError(t, err)
+
+	telemetry := newTelemetry()
+	monitor := &DriverMonitor{
+		di:         di,
+		telemetry:  telemetry,
+		statkeeper: newHTTPStatkeeper(config.New().MaxHTTPStatsBuffered, telemetry),
+	}
 
 	monitor.Start()
 	defer func() {
