@@ -24,6 +24,7 @@ func TestCache(t *testing.T) {
 	require.EqualValues(t, 1, len(c.tagsByKey))
 	require.EqualValues(t, 1, c.cap)
 	require.EqualValues(t, 1, c.tagsByKey[1].refs)
+	require.EqualValues(t, t1a.Tags(), []string{"1"})
 
 	t1b := c.Insert(1, t1)
 	require.EqualValues(t, 1, len(c.tagsByKey))
@@ -45,7 +46,7 @@ func TestCache(t *testing.T) {
 	require.EqualValues(t, 2, c.tagsByKey[2].refs)
 	require.Same(t, t2a, t2b)
 
-	c.Release(t1a)
+	t1a.Release()
 	require.EqualValues(t, 2, len(c.tagsByKey))
 	require.EqualValues(t, 2, c.cap)
 	require.EqualValues(t, 1, c.tagsByKey[1].refs)
@@ -55,19 +56,27 @@ func TestCache(t *testing.T) {
 	require.EqualValues(t, 2, len(c.tagsByKey))
 	require.EqualValues(t, 2, c.cap)
 
-	c.Release(t2a)
+	t2a.Release()
 	require.EqualValues(t, 2, len(c.tagsByKey))
 	require.EqualValues(t, 2, c.cap)
 	require.EqualValues(t, 1, c.tagsByKey[1].refs)
 	require.EqualValues(t, 1, c.tagsByKey[2].refs)
 
-	c.Release(t1b)
+	t1b.Release()
+	require.EqualValues(t, 2, len(c.tagsByKey))
+	require.EqualValues(t, 2, c.cap)
+	require.EqualValues(t, 0, c.tagsByKey[1].refs)
+	require.EqualValues(t, 1, c.tagsByKey[2].refs)
+
+	c.Shrink()
 	require.EqualValues(t, 1, len(c.tagsByKey))
 	require.EqualValues(t, 2, c.cap)
 	require.EqualValues(t, 1, c.tagsByKey[2].refs)
 
-	c.Release(t2b)
-	require.EqualValues(t, 0, len(c.tagsByKey))
+	t2b.Release()
+	require.EqualValues(t, 1, len(c.tagsByKey))
+	require.EqualValues(t, 2, c.cap)
+	require.EqualValues(t, 0, c.tagsByKey[2].refs)
 
 	c.Shrink()
 	require.EqualValues(t, 0, c.cap)
@@ -95,11 +104,11 @@ func TestCacheDisabled(t *testing.T) {
 	require.NotSame(t, t1a, t2a)
 	require.NotEqual(t, t1a, t2a)
 
-	c.Release(t1a)
+	t1a.Release()
 	require.EqualValues(t, 0, len(c.tagsByKey))
 	require.EqualValues(t, 0, c.cap)
 
-	c.Release(t2a)
+	t2a.Release()
 	require.EqualValues(t, 0, len(c.tagsByKey))
 	require.EqualValues(t, 0, c.cap)
 

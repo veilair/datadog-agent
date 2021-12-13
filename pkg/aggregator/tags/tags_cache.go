@@ -6,6 +6,7 @@
 package tags
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math/bits"
 
@@ -18,12 +19,17 @@ import (
 type Entry struct {
 	tags []string
 	refs uint64
-	key  ckey.TagsKey
+
+	tagsIndexed []byte
+	parentCache *Cache
 }
 
-// Tags returns the strings stored in the Entry.
+// Tags returns tags stored in the Entry as a new slice of strings.
 func (e *Entry) Tags() []string {
-	return e.tags
+	if e.parentCache == nil {
+		return e.tags
+	}
+	return e.parentCache.readTags(e)
 }
 
 // Cache is a reference counted cache of the tags slices, to be
@@ -33,6 +39,11 @@ type Cache struct {
 	cap       int
 	enabled   bool
 	telemetry cacheTelemetry
+
+	index    map[string]int
+	strings  []string
+	free     []int
+	indexbuf []int
 }
 
 // NewCache returns new empty Cache.
@@ -41,6 +52,7 @@ func NewCache(enabled bool, name string) *Cache {
 		tagsByKey: map[ckey.TagsKey]*Entry{},
 		enabled:   enabled,
 		telemetry: *newCacheTelemetry(name),
+		index:     make(map[string]int),
 	}
 }
 
@@ -52,7 +64,6 @@ func (tc *Cache) Insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumula
 		return &Entry{
 			tags: tagsBuffer.Copy(),
 			refs: 1,
-			key:  key,
 		}
 	}
 
@@ -62,9 +73,10 @@ func (tc *Cache) Insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumula
 		tc.telemetry.hits.Inc()
 	} else {
 		entry = &Entry{
-			tags: tagsBuffer.Copy(),
 			refs: 1,
-			key:  key,
+
+			tagsIndexed: tc.internTags(tagsBuffer.Get()),
+			parentCache: tc,
 		}
 		tc.tagsByKey[key] = entry
 		tc.cap++
@@ -74,26 +86,76 @@ func (tc *Cache) Insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumula
 	return entry
 }
 
-// Release is called when a context is removed, and its tags can be
-// freed.
-//
-// Tags will be removed from the cache.
-func (tc *Cache) Release(e *Entry) {
-	if !tc.enabled {
-		return
+
+func (tc *Cache) internTags(tags []string) []byte {
+	for _, tag := range tags {
+		idx, ok := tc.index[tag]
+		if !ok {
+			if len(tc.free) > 0 {
+				l := len(tc.free)
+				idx, tc.free = tc.free[l], tc.free[:l]
+				tc.strings[idx] = tag
+			} else {
+				idx = len(tc.strings)
+				tc.strings = append(tc.strings, tag)
+			}
+			tc.index[tag] = idx
+		}
+		tc.indexbuf = append(tc.indexbuf, idx)
 	}
 
-	key := e.key
-	tags := tc.tagsByKey[key]
-
-	tags.refs--
-	if tags.refs == 0 {
-		delete(tc.tagsByKey, key)
+	totb := 0
+	for _, idx := range tc.indexbuf {
+		numb := bits.Len(uint(idx))
+		totb += numb / 7
+		if numb == 0 || numb%7 > 0 {
+			totb++
+		}
 	}
+
+	tagi := make([]byte, totb)
+	pos := 0
+	for _, idx := range tc.indexbuf {
+		pos += binary.PutUvarint(tagi[pos:], uint64(idx))
+	}
+
+	tc.indexbuf = tc.indexbuf[:0]
+
+	return tagi
 }
 
-// Shrink will try release memory if cache usage drops low enough.
+func (tc *Cache) readTags(e *Entry) []string {
+	pos := 0
+	tags := make([]string, 0, varLen(e.tagsIndexed))
+	for pos < len(e.tagsIndexed) {
+		idx, n := binary.Uvarint(e.tagsIndexed[pos:])
+		pos += n
+		tags = append(tags, tc.strings[idx])
+	}
+
+	return tags
+}
+
+// Release decrements Entry's reference count. Once reference count
+// reaches zero, Entry will be removed from the cache during next
+// Shrink operation.
+//
+// Each Release call should be paired to an Insert call.
+func (e *Entry) Release() {
+	e.refs--
+}
+
+// Shrink removes unused entries and will reduce the internal map
+// size.
+//
+// Inserts can not happen concurrently while Shrink is running.
 func (tc *Cache) Shrink() {
+	for k, e := range tc.tagsByKey {
+		if e.refs == 0 {
+			delete(tc.tagsByKey, k)
+		}
+	}
+
 	if len(tc.tagsByKey) < tc.cap/2 {
 		new := make(map[ckey.TagsKey]*Entry, len(tc.tagsByKey))
 		for k, v := range tc.tagsByKey {
@@ -129,7 +191,7 @@ func (tc *Cache) UpdateTelemetry() {
 			refFreq[7]++
 		}
 
-		n := len(e.tags)
+		n := varLen(e.tagsIndexed)
 		if n < minSize {
 			minSize = n
 		}
@@ -184,4 +246,14 @@ func newCacheTelemetry(name string) *cacheTelemetry {
 		miss: tlmMiss.WithValues(name),
 		name: name,
 	}
+}
+
+func varLen(b []byte) int {
+	n := 0
+	for _, v := range b {
+		if v&0x80 == 0 {
+			n++
+		}
+	}
+	return n
 }

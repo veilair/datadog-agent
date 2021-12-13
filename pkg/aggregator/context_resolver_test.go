@@ -68,25 +68,18 @@ func TestTrackContext(t *testing.T) {
 		contextKey3 := contextResolver.trackContext(&mSample3)
 
 		// When we look up the 2 keys, they return the correct contexts
-		context1 := contextResolver.contextsByKey[contextKey1]
+		context1, _ := contextResolver.get(contextKey1)
 		assertContext(t, context1, mSample1.Name, mSample1.Tags, "")
 
-		context2 := contextResolver.contextsByKey[contextKey2]
+		context2, _ := contextResolver.get(contextKey2)
 		assertContext(t, context2, mSample2.Name, mSample2.Tags, "")
 
-		context3 := contextResolver.contextsByKey[contextKey3]
+		context3, _ := contextResolver.get(contextKey3)
 		assertContext(t, context3, mSample3.Name, mSample3.Tags, mSample3.Host)
 
 		unknownContextKey := ckey.ContextKey(0xffffffffffffffff)
 		_, ok := contextResolver.contextsByKey[unknownContextKey]
 		assert.False(t, ok)
-
-		assert.NotSame(t, context1.tags, context2.tags)
-		if useCache {
-			assert.Same(t, context2.tags, context3.tags)
-		} else {
-			assert.NotSame(t, context2.tags, context3.tags)
-		}
 	}
 }
 
@@ -177,7 +170,8 @@ func TestTagDeduplication(t *testing.T) {
 			Tags: []string{"bar", "bar"},
 		})
 
-		assert.Equal(t, len(resolver.contextsByKey[ckey].Tags()), 1)
-		assert.Equal(t, resolver.contextsByKey[ckey].Tags(), []string{"bar"})
+		context, _ := resolver.get(ckey)
+		assert.Equal(t, len(context.Tags()), 1)
+		assert.Equal(t, context.Tags(), []string{"bar"})
 	}
 }

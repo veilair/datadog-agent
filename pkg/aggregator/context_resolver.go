@@ -21,7 +21,7 @@ type Context struct {
 	tags *tags.Entry
 }
 
-// Tags returns tags for the context.
+// Tags returns tags for the context as a new string slice.
 func (c *Context) Tags() []string {
 	return c.tags.Tags()
 }
@@ -85,7 +85,7 @@ func (cr *contextResolver) removeKeys(expiredContextKeys []ckey.ContextKey) {
 		delete(cr.contextsByKey, expiredContextKey)
 
 		if context != nil {
-			cr.tagsCache.Release(context.tags)
+			context.tags.Release()
 		}
 	}
 
