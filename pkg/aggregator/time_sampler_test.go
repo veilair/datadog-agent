@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -29,7 +30,7 @@ func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 // TimeSampler
 func TestCalculateBucketStart(t *testing.T) {
 	for _, useCache := range []bool{true, false} {
-		sampler := NewTimeSampler(10, newTagsCache(useCache, "test"))
+		sampler := NewTimeSampler(10, tags.NewCache(useCache, "test"))
 
 		assert.Equal(t, int64(123450), sampler.calculateBucketStart(123456.5))
 		assert.Equal(t, int64(123460), sampler.calculateBucketStart(123460.5))
@@ -39,7 +40,7 @@ func TestCalculateBucketStart(t *testing.T) {
 func TestBucketSampling(t *testing.T) {
 	for _, useCache := range []bool{true, false} {
 
-		sampler := NewTimeSampler(10, newTagsCache(useCache, "test"))
+		sampler := NewTimeSampler(10, tags.NewCache(useCache, "test"))
 
 		mSample := metrics.MetricSample{
 			Name:       "my.metric.name",
@@ -73,7 +74,7 @@ func TestBucketSampling(t *testing.T) {
 func TestContextSampling(t *testing.T) {
 	for _, useCache := range []bool{true, false} {
 
-		sampler := NewTimeSampler(10, newTagsCache(useCache, "test"))
+		sampler := NewTimeSampler(10, tags.NewCache(useCache, "test"))
 
 		mSample1 := metrics.MetricSample{
 			Name:       "my.metric.name1",
@@ -140,7 +141,7 @@ func TestContextSampling(t *testing.T) {
 func TestCounterExpirySeconds(t *testing.T) {
 	for _, useCache := range []bool{true, false} {
 
-		sampler := NewTimeSampler(10, newTagsCache(useCache, "test"))
+		sampler := NewTimeSampler(10, tags.NewCache(useCache, "test"))
 		math.Abs(1)
 		sampleCounter1 := &metrics.MetricSample{
 			Name:       "my.counter1",
@@ -280,7 +281,7 @@ func TestSketch(t *testing.T) {
 	for _, useCache := range []bool{true, false} {
 
 		var (
-			sampler = NewTimeSampler(0, newTagsCache(useCache, "test"))
+			sampler = NewTimeSampler(0, tags.NewCache(useCache, "test"))
 
 			insert = func(t *testing.T, ts float64, name string, tags []string, host string, values ...float64) {
 				t.Helper()
@@ -348,7 +349,7 @@ func TestSketch(t *testing.T) {
 func TestSketchBucketSampling(t *testing.T) {
 	for _, useCache := range []bool{true, false} {
 
-		sampler := NewTimeSampler(10, newTagsCache(useCache, "test"))
+		sampler := NewTimeSampler(10, tags.NewCache(useCache, "test"))
 
 		mSample1 := metrics.MetricSample{
 			Name:       "test.metric.name",
@@ -394,7 +395,7 @@ func TestSketchBucketSampling(t *testing.T) {
 func TestSketchContextSampling(t *testing.T) {
 	for _, useCache := range []bool{true, false} {
 
-		sampler := NewTimeSampler(10, newTagsCache(useCache, "test"))
+		sampler := NewTimeSampler(10, tags.NewCache(useCache, "test"))
 
 		mSample1 := metrics.MetricSample{
 			Name:       "test.metric.name1",
@@ -447,7 +448,7 @@ func TestSketchContextSampling(t *testing.T) {
 func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 	for _, useCache := range []bool{true, false} {
 
-		sampler := NewTimeSampler(10, newTagsCache(useCache, "test"))
+		sampler := NewTimeSampler(10, tags.NewCache(useCache, "test"))
 
 		dSample1 := metrics.MetricSample{
 			Name:       "distribution.metric.name1",
@@ -505,7 +506,7 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 
 func BenchmarkTimeSampler(b *testing.B) {
 	for _, useCache := range []bool{true, false} {
-		sampler := NewTimeSampler(10, newTagsCache(useCache, "test"))
+		sampler := NewTimeSampler(10, tags.NewCache(useCache, "test"))
 		sample := metrics.MetricSample{
 			Name:       "my.metric.name",
 			Value:      1,

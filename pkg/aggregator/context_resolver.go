@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -17,18 +18,18 @@ import (
 type Context struct {
 	Name string
 	Host string
-	tags *tagsEntry
+	tags *tags.Entry
 }
 
 // Tags returns tags for the context.
 func (c *Context) Tags() []string {
-	return c.tags.tags
+	return c.tags.Tags()
 }
 
 // contextResolver allows tracking and expiring contexts
 type contextResolver struct {
 	contextsByKey map[ckey.ContextKey]*Context
-	tagsCache     *tagsCache
+	tagsCache     *tags.Cache
 	keyGenerator  *ckey.KeyGenerator
 	// buffer slice allocated once per contextResolver to combine and sort
 	// tags, origin detection tags and k8s tags.
@@ -40,7 +41,7 @@ func (cr *contextResolver) generateContextKey(metricSampleContext metrics.Metric
 	return cr.keyGenerator.GenerateWithTags(metricSampleContext.GetName(), metricSampleContext.GetHost(), cr.tagsBuffer)
 }
 
-func newContextResolver(cache *tagsCache) *contextResolver {
+func newContextResolver(cache *tags.Cache) *contextResolver {
 	return &contextResolver{
 		contextsByKey: make(map[ckey.ContextKey]*Context),
 		tagsCache:     cache,
@@ -60,7 +61,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 		// per context instead of one per sample.
 		cr.contextsByKey[contextKey] = &Context{
 			Name: metricSampleContext.GetName(),
-			tags: cr.tagsCache.insert(tagsKey, cr.tagsBuffer),
+			tags: cr.tagsCache.Insert(tagsKey, cr.tagsBuffer),
 			Host: metricSampleContext.GetHost(),
 		}
 	}
@@ -84,12 +85,12 @@ func (cr *contextResolver) removeKeys(expiredContextKeys []ckey.ContextKey) {
 		delete(cr.contextsByKey, expiredContextKey)
 
 		if context != nil {
-			cr.tagsCache.release(context.tags.key)
+			cr.tagsCache.Release(context.tags)
 		}
 	}
 
-	cr.tagsCache.shrink()
-	cr.tagsCache.updateTelemetry()
+	cr.tagsCache.Shrink()
+	cr.tagsCache.UpdateTelemetry()
 }
 
 // timestampContextResolver allows tracking and expiring contexts based on time.
@@ -98,7 +99,7 @@ type timestampContextResolver struct {
 	lastSeenByKey map[ckey.ContextKey]float64
 }
 
-func newTimestampContextResolver(cache *tagsCache) *timestampContextResolver {
+func newTimestampContextResolver(cache *tags.Cache) *timestampContextResolver {
 	return &timestampContextResolver{
 		resolver:      newContextResolver(cache),
 		lastSeenByKey: make(map[ckey.ContextKey]float64),
@@ -162,7 +163,7 @@ type countBasedContextResolver struct {
 	expireCountInterval int64
 }
 
-func newCountBasedContextResolver(expireCountInterval int, cache *tagsCache) *countBasedContextResolver {
+func newCountBasedContextResolver(expireCountInterval int, cache *tags.Cache) *countBasedContextResolver {
 	return &countBasedContextResolver{
 		resolver:            newContextResolver(cache),
 		expireCountByKey:    make(map[ckey.ContextKey]int64),

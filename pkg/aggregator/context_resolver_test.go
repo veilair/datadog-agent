@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
@@ -59,39 +60,7 @@ func TestTrackContext(t *testing.T) {
 			SampleRate: 1,
 		}
 
-		var expectedRefs2 uint64 = 1
-		var expectedRefs3 uint64 = 1
-		if useCache {
-			expectedRefs2 = 2
-			expectedRefs3 = 2
-		}
-
-		expectedContext1 := Context{
-			Name: mSample1.Name,
-			tags: &tagsEntry{
-				tags: mSample1.Tags,
-				key:  8090679952712639333,
-				refs: 1,
-			},
-		}
-		expectedContext2 := Context{
-			Name: mSample2.Name,
-			tags: &tagsEntry{
-				tags: mSample2.Tags,
-				key:  241159395798695535,
-				refs: expectedRefs2,
-			},
-		}
-		expectedContext3 := Context{
-			Name: mSample3.Name,
-			tags: &tagsEntry{
-				tags: mSample3.Tags,
-				key:  241159395798695535,
-				refs: expectedRefs3,
-			},
-			Host: mSample3.Host,
-		}
-		contextResolver := newContextResolver(newTagsCache(useCache, "test"))
+		contextResolver := newContextResolver(tags.NewCache(useCache, "test"))
 
 		// Track the 2 contexts
 		contextKey1 := contextResolver.trackContext(&mSample1)
@@ -100,13 +69,13 @@ func TestTrackContext(t *testing.T) {
 
 		// When we look up the 2 keys, they return the correct contexts
 		context1 := contextResolver.contextsByKey[contextKey1]
-		assert.Equal(t, expectedContext1, *context1)
+		assertContext(t, context1, mSample1.Name, mSample1.Tags, "")
 
 		context2 := contextResolver.contextsByKey[contextKey2]
-		assert.Equal(t, expectedContext2, *context2)
+		assertContext(t, context2, mSample2.Name, mSample2.Tags, "")
 
 		context3 := contextResolver.contextsByKey[contextKey3]
-		assert.Equal(t, expectedContext3, *context3)
+		assertContext(t, context3, mSample3.Name, mSample3.Tags, mSample3.Host)
 
 		unknownContextKey := ckey.ContextKey(0xffffffffffffffff)
 		_, ok := contextResolver.contextsByKey[unknownContextKey]
@@ -119,6 +88,12 @@ func TestTrackContext(t *testing.T) {
 			assert.NotSame(t, context2.tags, context3.tags)
 		}
 	}
+}
+
+func assertContext(t *testing.T, cx *Context, name string, tags []string, host string) {
+	assert.Equal(t, cx.Name, name)
+	assert.Equal(t, cx.Host, host)
+	assert.Equal(t, cx.Tags(), tags)
 }
 
 func TestExpireContexts(t *testing.T) {
@@ -138,7 +113,7 @@ func TestExpireContexts(t *testing.T) {
 			Tags:       []string{"foo", "bar", "baz"},
 			SampleRate: 1,
 		}
-		contextResolver := newTimestampContextResolver(newTagsCache(useCache, "test"))
+		contextResolver := newTimestampContextResolver(tags.NewCache(useCache, "test"))
 
 		// Track the 2 contexts
 		contextKey1 := contextResolver.trackContext(&mSample1, 4)
@@ -171,7 +146,7 @@ func TestCountBasedExpireContexts(t *testing.T) {
 		mSample1 := metrics.MetricSample{Name: "my.metric.name1"}
 		mSample2 := metrics.MetricSample{Name: "my.metric.name2"}
 		mSample3 := metrics.MetricSample{Name: "my.metric.name3"}
-		contextResolver := newCountBasedContextResolver(2, newTagsCache(useCache, "test"))
+		contextResolver := newCountBasedContextResolver(2, tags.NewCache(useCache, "test"))
 
 		contextKey1 := contextResolver.trackContext(&mSample1)
 		contextKey2 := contextResolver.trackContext(&mSample2)
@@ -195,7 +170,7 @@ func TestCountBasedExpireContexts(t *testing.T) {
 func TestTagDeduplication(t *testing.T) {
 	for _, useCache := range []bool{true, false} {
 
-		resolver := newContextResolver(newTagsCache(useCache, "test"))
+		resolver := newContextResolver(tags.NewCache(useCache, "test"))
 
 		ckey := resolver.trackContext(&metrics.MetricSample{
 			Name: "foo",

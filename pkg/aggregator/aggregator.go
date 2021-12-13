@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
@@ -229,7 +230,7 @@ type BufferedAggregator struct {
 
 	statsdSampler          TimeSampler
 	checkSamplers          map[check.ID]*CheckSampler
-	checkTagsCache         *tagsCache
+	checkTagsCache         *tags.Cache
 	serviceChecks          metrics.ServiceChecks
 	events                 metrics.Events
 	flushInterval          time.Duration
@@ -267,8 +268,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		agentName = flavor.HerokuAgent
 	}
 
-	statsdTagsCache := newTagsCache(config.Datadog.GetBool("dogstatsd_use_tags_cache"), "dogstatsd")
-	checkTagsCache := newTagsCache(config.Datadog.GetBool("check_sampler_use_tags_cache"), "checks")
+	statsdTagsCache := tags.NewCache(config.Datadog.GetBool("dogstatsd_use_tags_cache"), "dogstatsd")
+	checkTagsCache := tags.NewCache(config.Datadog.GetBool("check_sampler_use_tags_cache"), "checks")
 
 	aggregator := &BufferedAggregator{
 		bufferedMetricIn:       make(chan []metrics.MetricSample, bufferSize),

@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,7 +32,7 @@ type TimeSampler struct {
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
-func NewTimeSampler(interval int64, cache *tagsCache) *TimeSampler {
+func NewTimeSampler(interval int64, cache *tags.Cache) *TimeSampler {
 	if interval == 0 {
 		interval = bucketSize
 	}

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
-package aggregator
+package tags
 
 import (
 	"fmt"
@@ -14,37 +14,42 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
-// tags is used to keep track of tag slices shared by the contexts.
-type tagsEntry struct {
+// Entry is used to keep track of tag slices shared by the contexts.
+type Entry struct {
 	tags []string
 	refs uint64
 	key  ckey.TagsKey
 }
 
-// tagsCache is a reference counted cache of the tags slices, to be
+// Tags returns the strings stored in the Entry.
+func (e *Entry) Tags() []string {
+	return e.tags
+}
+
+// Cache is a reference counted cache of the tags slices, to be
 // shared between contexts.
-type tagsCache struct {
-	tagsByKey map[ckey.TagsKey]*tagsEntry
+type Cache struct {
+	tagsByKey map[ckey.TagsKey]*Entry
 	cap       int
 	enabled   bool
 	telemetry tagsCacheTelemetry
 }
 
-func newTagsCache(enabled bool, name string) *tagsCache {
-	return &tagsCache{
-		tagsByKey: map[ckey.TagsKey]*tagsEntry{},
+// NewCache returns new empty Cache.
+func NewCache(enabled bool, name string) *Cache {
+	return &Cache{
+		tagsByKey: map[ckey.TagsKey]*Entry{},
 		enabled:   enabled,
 		telemetry: *newTagsCacheTelemetry(name),
 	}
 }
 
-// trackTags returns tag slice that corresponds to the key.  If key is
-// already in the cache, we return existing slice. If the key is new,
-// tags from the accumulator will be copied and associated with the
-// key.
-func (tc *tagsCache) insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumulator) *tagsEntry {
+// Insert returns a cache Entry that corresponds to the key. If the
+// key is not in the cache, a new entry is stored in the cache with
+// the tags retrieved from the tagsBuffer.
+func (tc *Cache) Insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumulator) *Entry {
 	if !tc.enabled {
-		return &tagsEntry{
+		return &Entry{
 			tags: tagsBuffer.Copy(),
 			refs: 1,
 			key:  key,
@@ -56,7 +61,7 @@ func (tc *tagsCache) insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccu
 		entry.refs++
 		tc.telemetry.hits.Inc()
 	} else {
-		entry = &tagsEntry{
+		entry = &Entry{
 			tags: tagsBuffer.Copy(),
 			refs: 1,
 			key:  key,
@@ -69,15 +74,16 @@ func (tc *tagsCache) insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccu
 	return entry
 }
 
-// release is called when a context is removed, and its tags can be
+// Release is called when a context is removed, and its tags can be
 // freed.
 //
 // Tags will be removed from the cache.
-func (tc *tagsCache) release(key ckey.TagsKey) {
+func (tc *Cache) Release(e *Entry) {
 	if !tc.enabled {
 		return
 	}
 
+	key := e.key
 	tags := tc.tagsByKey[key]
 
 	tags.refs--
@@ -86,10 +92,10 @@ func (tc *tagsCache) release(key ckey.TagsKey) {
 	}
 }
 
-// shrink will try release memory if cache usage drops low enough.
-func (tc *tagsCache) shrink() {
+// Shrink will try release memory if cache usage drops low enough.
+func (tc *Cache) Shrink() {
 	if len(tc.tagsByKey) < tc.cap/2 {
-		new := make(map[ckey.TagsKey]*tagsEntry, len(tc.tagsByKey))
+		new := make(map[ckey.TagsKey]*Entry, len(tc.tagsByKey))
 		for k, v := range tc.tagsByKey {
 			new[k] = v
 		}
@@ -98,7 +104,8 @@ func (tc *tagsCache) shrink() {
 	}
 }
 
-func (tc *tagsCache) updateTelemetry() {
+// UpdateTelemetry updates telemetry counters exported by the cache.
+func (tc *Cache) UpdateTelemetry() {
 	t := &tc.telemetry
 
 	tlmTagsCacheMaxSize.Set(float64(tc.cap), t.name)
