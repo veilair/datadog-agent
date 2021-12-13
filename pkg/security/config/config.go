@@ -88,6 +88,8 @@ type Config struct {
 	SelfTestEnabled bool
 	// EnableRemoteConfig defines if configuration should be fetched from the backend
 	EnableRemoteConfig bool
+	// SymlinkResolverEnabled defines whether the symlink resolver is enabled
+	SymlinkResolverEnabled bool
 }
 
 // IsEnabled returns true if any feature is enabled. Has to be applied in config package too
@@ -128,6 +130,7 @@ func NewConfig(cfg *config.Config) (*Config, error) {
 		LogPatterns:                        aconfig.Datadog.GetStringSlice("runtime_security_config.log_patterns"),
 		SelfTestEnabled:                    aconfig.Datadog.GetBool("runtime_security_config.self_test.enabled"),
 		EnableRemoteConfig:                 aconfig.Datadog.GetBool("runtime_security_config.enable_remote_configuration"),
+		SymlinkResolverEnabled:             aconfig.Datadog.GetBool("runtime_security_config.symlink_resolver_enabled"),
 	}
 
 	// if runtime is enabled then we force fim

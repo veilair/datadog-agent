@@ -765,6 +765,22 @@ func (p *Probe) SelectProbes(rs *rules.RuleSet) error {
 	return p.manager.UpdateActivatedProbes(activatedProbes)
 }
 
+// OnRuleSetReload should be called before reload
+func (p *Probe) OnRuleSetReload() error {
+	p.resolvers.SymlinkResolver.Reset()
+
+	return nil
+}
+
+// OnRuleSetApplied called by the applier after reload
+func (p *Probe) OnRuleSetApplied() error {
+	if err := p.FlushDiscarders(); err != nil {
+		return errors.Wrap(err, "failed to flush discarders")
+	}
+
+	return nil
+}
+
 // FlushDiscarders removes all the discarders
 func (p *Probe) FlushDiscarders() error {
 	log.Debug("Freezing discarders")
@@ -900,8 +916,8 @@ func (p *Probe) OnMountEventInserted(e *model.MountEvent) {
 	p.inodeDiscarders.initRevision(e)
 
 	// update symlinks
-	if e.IsOverlayFS() {
-		p.resolvers.SymlinkResolver.ScheduleUpdate(e.MountPointStr)
+	if e.IsOverlayFS() && p.config.SymlinkResolverEnabled {
+		p.resolvers.SymlinkResolver.ScheduleUpdate(p.resolvers.MountResolver.GetOverlayPath(e))
 	}
 }
 

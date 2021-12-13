@@ -363,6 +363,15 @@ func (mr *MountResolver) Start(ctx context.Context) {
 	}()
 }
 
+// GetOverlayPath returns the overlay path
+func (mr *MountResolver) GetOverlayPath(e *model.MountEvent) string {
+	if ancestor := mr.getAncestor(e); ancestor != nil {
+		e = ancestor
+	}
+
+	return mr.getOverlayPath(e)
+}
+
 // GetMountPath returns the path of a mount identified by its mount ID. The first path is the container mount path if
 // it exists, the second parameter is the mount point path, and the third parameter is the root path.
 func (mr *MountResolver) GetMountPath(mountID uint32) (string, string, string, error) {
@@ -377,12 +386,7 @@ func (mr *MountResolver) GetMountPath(mountID uint32) (string, string, string, e
 		return "", "", "", nil
 	}
 
-	ref := mount
-	if ancestor := mr.getAncestor(mount); ancestor != nil {
-		ref = ancestor
-	}
-
-	return mr.getOverlayPath(ref), mr.getParentPath(mountID), mount.RootStr, nil
+	return mr.GetOverlayPath(mount), mr.getParentPath(mountID), mount.RootStr, nil
 }
 
 func getMountIDOffset(probe *Probe) uint64 {
