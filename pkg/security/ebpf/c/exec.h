@@ -325,15 +325,24 @@ int kprobe__do_fork(struct pt_regs *ctx) {
 
 SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
+    // inherit netns
+    u32 pid = 0;
+    bpf_probe_read(&pid, sizeof(pid), &args->child_pid);
+    u32 parent_pid = args->parent_pid;
+    bpf_probe_read(&parent_pid, sizeof(parent_pid), &args->child_pid);
+    u32 *netns = bpf_map_lookup_elem(&netns_cache, &parent_pid);
+    if (netns != NULL) {
+        u32 child_netns_entry = *netns;
+        bpf_map_update_elem(&netns_cache, &pid, &child_netns_entry, BPF_ANY);
+    }
+
     // check if this is a thread first
     struct syscall_cache_t *syscall = pop_syscall(EVENT_FORK);
     if (syscall) {
         return 0;
     }
 
-    u32 pid = 0;
     u32 ppid = 0;
-    bpf_probe_read(&pid, sizeof(pid), &args->child_pid);
     u64 ts = bpf_ktime_get_ns();
 
     struct exec_event_t event = {
@@ -380,6 +389,9 @@ int kprobe_do_exit(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
     u32 pid = pid_tgid;
+
+    // delete netns entry
+    bpf_map_delete_elem(&netns_cache, &pid);
 
     if (tgid == pid) {
         if (!is_flushing_discarders()) {
@@ -500,4 +512,5 @@ int kprobe_security_bprm_committed_creds(struct pt_regs *ctx) {
 
     return 0;
 }
+
 #endif

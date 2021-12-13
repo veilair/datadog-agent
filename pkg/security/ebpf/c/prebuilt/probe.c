@@ -6,6 +6,7 @@
 #include <linux/version.h>
 #include <linux/bpf.h>
 #include <linux/filter.h>
+#include <linux/nsproxy.h>
 
 #include <net/sock.h>
 #include <uapi/linux/ip.h>
@@ -15,13 +16,13 @@
 
 #include "defs.h"
 #include "buffer_selector.h"
+#include "process.h"
 #include "filters.h"
 #include "approvers.h"
 #include "discarders.h"
 #include "dentry.h"
 #include "dentry_resolver.h"
 #include "exec.h"
-#include "process.h"
 #include "container.h"
 #include "commit_creds.h"
 #include "overlayfs.h"

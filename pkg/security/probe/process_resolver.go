@@ -402,6 +402,9 @@ func (p *ProcessResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, pr
 		}
 	}
 
+	// add netns
+	entry.NetNS, _ = utils.GetProcessNetworkNamespace(pid)
+
 	return nil
 }
 
