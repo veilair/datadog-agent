@@ -232,6 +232,9 @@ func (tc *Cache) UpdateTelemetry() {
 	tlmTagsetMinTags.Set(float64(minSize), t.name)
 	tlmTagsetMaxTags.Set(float64(maxSize), t.name)
 	tlmTagsetSumTags.Set(float64(sumSize), t.name)
+
+	tlmTotalStrings.Set(float64(len(tc.index)), t.name)
+	tlmTotalSlots.Set(float64(len(tc.strings.Load().([]string))), t.name)
 }
 
 func newCounter(name string, help string, tags ...string) telemetry.Counter {
@@ -253,6 +256,9 @@ var (
 	tlmTagsetMaxTags = newGauge("tagset_max_tags", "maximum number of tags in a tagset")
 	tlmTagsetSumTags = newGauge("tagset_sum_tags", "total number of tags stored in all tagsets by the cache")
 	tlmTagsetRefsCnt = newGauge("tagset_refs_count", "distribution of usage count of tagsets in the cache", "ge")
+
+	tlmTotalStrings = newGauge("count_strings", "number of unique strings tracked by the cache")
+	tlmTotalSlots   = newGauge("count_slots", "total number of slots allocated for strings")
 )
 
 type cacheTelemetry struct {
