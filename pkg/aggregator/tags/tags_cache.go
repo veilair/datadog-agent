@@ -32,7 +32,7 @@ type Cache struct {
 	tagsByKey map[ckey.TagsKey]*Entry
 	cap       int
 	enabled   bool
-	telemetry tagsCacheTelemetry
+	telemetry cacheTelemetry
 }
 
 // NewCache returns new empty Cache.
@@ -40,7 +40,7 @@ func NewCache(enabled bool, name string) *Cache {
 	return &Cache{
 		tagsByKey: map[ckey.TagsKey]*Entry{},
 		enabled:   enabled,
-		telemetry: *newTagsCacheTelemetry(name),
+		telemetry: *newCacheTelemetry(name),
 	}
 }
 
@@ -108,8 +108,8 @@ func (tc *Cache) Shrink() {
 func (tc *Cache) UpdateTelemetry() {
 	t := &tc.telemetry
 
-	tlmTagsCacheMaxSize.Set(float64(tc.cap), t.name)
-	tlmTagsCacheSize.Set(float64(len(tc.tagsByKey)), t.name)
+	tlmMaxEntries.Set(float64(tc.cap), t.name)
+	tlmEntries.Set(float64(len(tc.tagsByKey)), t.name)
 
 	minSize := 0
 	maxSize := 0
@@ -140,51 +140,48 @@ func (tc *Cache) UpdateTelemetry() {
 	}
 
 	for i := 0; i < 3; i++ {
-		tlmTagsCacheTagsetRefs.Set(float64(refFreq[i]), t.name, fmt.Sprintf("%d", i+1))
+		tlmTagsetRefsCnt.Set(float64(refFreq[i]), t.name, fmt.Sprintf("%d", i+1))
 	}
 	for i := 3; i < 8; i++ {
-		tlmTagsCacheTagsetRefs.Set(float64(refFreq[i]), t.name, fmt.Sprintf("%d", 1<<(i-1)))
+		tlmTagsetRefsCnt.Set(float64(refFreq[i]), t.name, fmt.Sprintf("%d", 1<<(i-1)))
 	}
 
-	tlmTagsCacheTagsetSizeMin.Set(float64(minSize), t.name)
-	tlmTagsCacheTagsetSizeMax.Set(float64(maxSize), t.name)
-	tlmTagsCacheTagsetSizeSum.Set(float64(sumSize), t.name)
+	tlmTagsetMinTags.Set(float64(minSize), t.name)
+	tlmTagsetMaxTags.Set(float64(maxSize), t.name)
+	tlmTagsetSumTags.Set(float64(sumSize), t.name)
+}
+
+func newCounter(name string, help string, tags ...string) telemetry.Counter {
+	return telemetry.NewCounter("aggregator_tags_cache", name,
+		append([]string{"cache_instance_name"}, tags...), help)
+}
+
+func newGauge(name string, help string, tags ...string) telemetry.Gauge {
+	return telemetry.NewGauge("aggregator_tags_cache", name,
+		append([]string{"cache_instance_name"}, tags...), help)
 }
 
 var (
-	tlmTagsCacheHits = telemetry.NewCounter("aggregator_tags_cache", "hits_total",
-		[]string{"cache_instance_name"},
-		"number of times cache already contained the tags")
-	tlmTagsCacheMiss = telemetry.NewCounter("aggregator_tags_cache", "miss_total",
-		[]string{"cache_instance_name"},
-		"number of times cache did not contain the tags")
-
-	tlmTagsCacheSize = telemetry.NewGauge("aggregator_tags_cache", "current_entries",
-		[]string{"cache_instance_name"},
-		"number of entries in the tags cache")
-	tlmTagsCacheMaxSize = telemetry.NewGauge("aggregator_tags_cache", "max_entries",
-		[]string{"cache_instance_name"},
-		"maximum number of entries since last shrink")
-
-	tlmTagsCacheTagsetSizeMin = telemetry.NewGauge("aggregator_tags_cache", "tagset_tags_size_min", []string{"cache_instance_name"}, "minimum number of tags in a tagset")
-	tlmTagsCacheTagsetSizeMax = telemetry.NewGauge("aggregator_tags_cache", "tagset_tags_size_max", []string{"cache_instance_name"}, "maximum number of tags in a tagset")
-	tlmTagsCacheTagsetSizeSum = telemetry.NewGauge("aggregator_tags_cache", "tagset_tags_size_sum", []string{"cache_instance_name"}, "total number of tags stored by the cache")
-
-	tlmTagsCacheTagsetRefs = telemetry.NewGauge("aggregator_tags_cache", "tagset_refs_count",
-		[]string{"cache_instance_name", "ge"},
-		"distribution of usage count of tagsets in the cache")
+	tlmHits          = newCounter("hits_total", "number of times cache already contained the tags")
+	tlmMiss          = newCounter("miss_total", "number of times cache did not contain the tags")
+	tlmEntries       = newGauge("entries", "number of entries in the tags cache")
+	tlmMaxEntries    = newGauge("max_entries", "maximum number of entries since last shrink")
+	tlmTagsetMinTags = newGauge("tagset_min_tags", "minimum number of tags in a tagset")
+	tlmTagsetMaxTags = newGauge("tagset_max_tags", "maximum number of tags in a tagset")
+	tlmTagsetSumTags = newGauge("tagset_sum_tags", "total number of tags stored in all tagsets by the cache")
+	tlmTagsetRefsCnt = newGauge("tagset_refs_count", "distribution of usage count of tagsets in the cache", "ge")
 )
 
-type tagsCacheTelemetry struct {
+type cacheTelemetry struct {
 	hits telemetry.SimpleCounter
 	miss telemetry.SimpleCounter
 	name string
 }
 
-func newTagsCacheTelemetry(name string) *tagsCacheTelemetry {
-	return &tagsCacheTelemetry{
-		hits: tlmTagsCacheHits.WithValues(name),
-		miss: tlmTagsCacheMiss.WithValues(name),
+func newCacheTelemetry(name string) *cacheTelemetry {
+	return &cacheTelemetry{
+		hits: tlmHits.WithValues(name),
+		miss: tlmMiss.WithValues(name),
 		name: name,
 	}
 }
