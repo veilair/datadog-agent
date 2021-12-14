@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math/bits"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -41,24 +42,31 @@ type Cache struct {
 	telemetry cacheTelemetry
 
 	index    map[string]int
-	strings  []string
+	strings  atomic.Value
 	free     []int
 	indexbuf []int
 }
 
 // NewCache returns new empty Cache.
 func NewCache(enabled bool, name string) *Cache {
-	return &Cache{
+	c := &Cache{
 		tagsByKey: map[ckey.TagsKey]*Entry{},
 		enabled:   enabled,
 		telemetry: *newCacheTelemetry(name),
 		index:     make(map[string]int),
 	}
+	c.strings.Store([]string{})
+
+	return c
 }
 
 // Insert returns a cache Entry that corresponds to the key. If the
 // key is not in the cache, a new entry is stored in the cache with
 // the tags retrieved from the tagsBuffer.
+//
+// Insert is not reentrant and should not be called concurrently.
+// Insert can be called concurrently with Entry.Tags.
+// Insert must not be called concurrently with Cache.Shrink.
 func (tc *Cache) Insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumulator) *Entry {
 	if !tc.enabled {
 		return &Entry{
@@ -86,23 +94,26 @@ func (tc *Cache) Insert(key ckey.TagsKey, tagsBuffer *tagset.HashingTagsAccumula
 	return entry
 }
 
-
 func (tc *Cache) internTags(tags []string) []byte {
+	strings := tc.strings.Load().([]string)
+
 	for _, tag := range tags {
 		idx, ok := tc.index[tag]
 		if !ok {
 			if len(tc.free) > 0 {
 				l := len(tc.free)
 				idx, tc.free = tc.free[l], tc.free[:l]
-				tc.strings[idx] = tag
+				strings[idx] = tag
 			} else {
-				idx = len(tc.strings)
-				tc.strings = append(tc.strings, tag)
+				idx = len(strings)
+				strings = append(strings, tag)
 			}
 			tc.index[tag] = idx
 		}
 		tc.indexbuf = append(tc.indexbuf, idx)
 	}
+
+	tc.strings.Store(strings)
 
 	totb := 0
 	for _, idx := range tc.indexbuf {
@@ -127,13 +138,23 @@ func (tc *Cache) internTags(tags []string) []byte {
 func (tc *Cache) readTags(e *Entry) []string {
 	pos := 0
 	tags := make([]string, 0, varLen(e.tagsIndexed))
+	strings := tc.strings.Load().([]string)
 	for pos < len(e.tagsIndexed) {
 		idx, n := binary.Uvarint(e.tagsIndexed[pos:])
 		pos += n
-		tags = append(tags, tc.strings[idx])
+		tags = append(tags, strings[idx])
 	}
 
 	return tags
+}
+
+// Acquire increments reference count on an Entry.
+//
+// It should be called when a copy of an Entry is required to outlive
+// Shrink.
+func (e *Entry) Acquire() *Entry {
+	atomic.AddUint64(&e.refs, 1)
+	return e
 }
 
 // Release decrements Entry's reference count. Once reference count
@@ -142,7 +163,7 @@ func (tc *Cache) readTags(e *Entry) []string {
 //
 // Each Release call should be paired to an Insert call.
 func (e *Entry) Release() {
-	e.refs--
+	atomic.AddUint64(&e.refs, ^uint64(0))
 }
 
 // Shrink removes unused entries and will reduce the internal map
@@ -151,7 +172,7 @@ func (e *Entry) Release() {
 // Inserts can not happen concurrently while Shrink is running.
 func (tc *Cache) Shrink() {
 	for k, e := range tc.tagsByKey {
-		if e.refs == 0 {
+		if atomic.LoadUint64(&e.refs) == 0 {
 			delete(tc.tagsByKey, k)
 		}
 	}
@@ -182,7 +203,7 @@ func (tc *Cache) UpdateTelemetry() {
 	for _, e := range tc.tagsByKey {
 		// refs is always positive
 
-		r := e.refs
+		r := atomic.LoadUint64(&e.refs)
 		if r <= 3 {
 			refFreq[r-1]++
 		} else if r <= 32 {
