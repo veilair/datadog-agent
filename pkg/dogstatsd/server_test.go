@@ -33,7 +33,8 @@ type testAgentDemultiplexer struct {
 	sync.Mutex
 }
 
-func (a *testAgentDemultiplexer) AddTimeSamples(samples []metrics.MetricSample) {
+func (a *testAgentDemultiplexer) AddTimeSamples(shard uint64, samples []metrics.MetricSample) {
+	// TODO(remy): should I test anything related to the sharding here?
 	a.Lock()
 	a.receivedSamples = append(a.receivedSamples, samples...)
 	a.Unlock()

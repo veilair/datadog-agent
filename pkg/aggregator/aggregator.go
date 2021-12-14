@@ -202,7 +202,6 @@ type BufferedAggregator struct {
 	// Used by the Dogstatsd Batcher.
 	MetricSamplePool *metrics.MetricSamplePool
 
-	statsdSampler          TimeSampler
 	checkSamplers          map[check.ID]*CheckSampler
 	serviceChecks          metrics.ServiceChecks
 	events                 metrics.Events
@@ -258,7 +257,6 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 
 		MetricSamplePool: metrics.NewMetricSamplePool(MetricSamplePoolBatchSize),
 
-		statsdSampler:           *NewTimeSampler(0, bucketSize, s),
 		checkSamplers:           make(map[check.ID]*CheckSampler),
 		flushInterval:           flushInterval,
 		serializer:              s,
@@ -423,11 +421,6 @@ func (agg *BufferedAggregator) addEvent(e metrics.Event) {
 	e.Tags = tb.Get()
 
 	agg.events = append(agg.events, &e)
-}
-
-// addSample adds the metric sample
-func (agg *BufferedAggregator) addSample(metricSample *metrics.MetricSample, timestamp float64) {
-	agg.statsdSampler.addSample(metricSample, timestamp)
 }
 
 // GetSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
@@ -747,10 +740,11 @@ func (agg *BufferedAggregator) run() {
 			aggregatorCheckHistogramBucketMetricSample.Add(1)
 			tlmProcessed.Inc("histogram_bucket")
 			agg.handleSenderBucket(checkHistogramBucket)
-		case metric := <-agg.metricIn:
-			aggregatorDogstatsdMetricSample.Add(1)
-			tlmProcessed.Inc("dogstatsd_metrics")
-			agg.addSample(metric, timeNowNano())
+		case <-agg.metricIn: // XXX(remy): delete the case
+			//		case metric := <-agg.metricIn:
+			//			aggregatorDogstatsdMetricSample.Add(1)
+			//			tlmProcessed.Inc("dogstatsd_metrics")
+			//			agg.addSample(metric, timeNowNano())
 		case event := <-agg.eventIn:
 			aggregatorEvent.Add(1)
 			tlmProcessed.Inc("events")
@@ -759,13 +753,14 @@ func (agg *BufferedAggregator) run() {
 			aggregatorServiceCheck.Add(1)
 			tlmProcessed.Inc("service_checks")
 			agg.addServiceCheck(serviceCheck)
-		case ms := <-agg.bufferedMetricInWithTs:
-			aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
-			tlmProcessed.Add(float64(len(ms)), "dogstatsd_metrics")
-			for i := 0; i < len(ms); i++ {
-				agg.addSample(&ms[i], ms[i].Timestamp/float64(time.Second))
-			}
-			agg.MetricSamplePool.PutBatch(ms)
+		case <-agg.bufferedMetricInWithTs: // XXX(remy): delete the case
+			//		case ms := <-agg.bufferedMetricInWithTs:
+			//			aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
+			//			tlmProcessed.Add(float64(len(ms)), "dogstatsd_metrics")
+			//			for i := 0; i < len(ms); i++ {
+			//				agg.addSample(&ms[i], ms[i].Timestamp/float64(time.Second))
+			//			}
+			//			agg.MetricSamplePool.PutBatch(ms)
 		case serviceChecks := <-agg.bufferedServiceCheckIn:
 			aggregatorServiceCheck.Add(int64(len(serviceChecks)))
 			tlmProcessed.Add(float64(len(serviceChecks)), "service_checks")

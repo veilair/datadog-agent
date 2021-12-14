@@ -23,11 +23,6 @@ type SerieSignature struct {
 	nameSuffix string
 }
 
-type tsSample struct {
-	sample    *metrics.MetricSample
-	timestamp float64
-}
-
 // TimeSamplerID is a type ID for sharded time samplers.
 type TimeSamplerID int
 
@@ -40,24 +35,24 @@ type TimeSampler struct {
 	lastCutOffTime              int64
 	sketchMap                   sketchMap
 
+	// XXX(remy):
+	metricSamplePool *metrics.MetricSamplePool
 	// id is a number to differentiate multiple time samplers
 	// since we start running more than one with the demultiplexer introduction
-	id TimeSamplerID
-
+	id         TimeSamplerID
 	serializer serializer.MetricSerializer
-
-	stopChan chan struct{}
-
+	stopChan   chan struct{}
 	// TODO(remy): comment me
-	samples chan tsSample
+	samples chan []metrics.MetricSample
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
-func NewTimeSampler(id TimeSamplerID, interval int64, serializer serializer.MetricSerializer) *TimeSampler {
+func NewTimeSampler(id TimeSamplerID, interval int64, metricSamplePool *metrics.MetricSamplePool, bufferSize int, serializer serializer.MetricSerializer) *TimeSampler {
 	if interval == 0 {
 		interval = bucketSize
 	}
-	log.Infof("Creating TimeSample #%d", id)
+
+	log.Infof("Creating TimeSampler #%d", id)
 
 	ts := &TimeSampler{
 		interval:                    interval,
@@ -68,7 +63,8 @@ func NewTimeSampler(id TimeSamplerID, interval int64, serializer serializer.Metr
 		id:                          id,
 		stopChan:                    make(chan struct{}),
 		serializer:                  serializer,
-		samples:                     make(chan tsSample, 100), // XXX(remy): size
+		metricSamplePool:            metricSamplePool,
+		samples:                     make(chan []metrics.MetricSample, bufferSize),
 	}
 
 	go ts.processLoop(time.Second * time.Duration(interval))
@@ -85,17 +81,18 @@ func (s *TimeSampler) isBucketStillOpen(bucketStartTimestamp, timestamp int64) b
 }
 
 // Add the metricSample to the correct bucket
-func (s *TimeSampler) addSample(metricSample *metrics.MetricSample, timestamp float64) {
+func (s *TimeSampler) addSamples(samples []metrics.MetricSample) {
 	// XXX(remy): temporary telemetry tag to know in which samplers the sample has been distributed
 	//	metricSample.Tags = append(metricSample.Tags, fmt.Sprintf("timesampler:%d", s.id))
-
-	s.samples <- tsSample{sample: metricSample, timestamp: timestamp}
+	s.samples <- samples
 }
 
 func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float64) {
 	// Keep track of the context
 	contextKey := s.contextResolver.trackContext(metricSample, timestamp)
 	bucketStart := s.calculateBucketStart(timestamp)
+
+	//	log.Infof("TimeSampler #%d processed sample '%s' tags '%s': %s", s.id, metricSample.Name, metricSample.Tags)
 
 	switch metricSample.Mtype {
 	case metrics.DistributionType:
@@ -137,8 +134,16 @@ func (s *TimeSampler) processLoop(interval time.Duration) {
 		select {
 		case <-s.stopChan:
 			return
-		case tss := <-s.samples:
-			s.sample(tss.sample, tss.timestamp)
+		case ms := <-s.samples:
+			// do this telemetry here and not in the samplers goroutines, this way
+			// they won't compete for the telemetry locks.
+			aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
+			tlmProcessed.Add(float64(len(ms)), "dogstatsd_metrics")
+			t := timeNowNano()
+			for i := 0; i < len(ms); i++ {
+				s.sample(&ms[i], t)
+			}
+			s.metricSamplePool.PutBatch(ms)
 		case t := <-ticker.C:
 			series, sketches := s.flush(float64(t.Unix())) // XXX(remy): is this conversation correct? note that it is in second
 			// XXX(remy): better error management

@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -44,7 +43,7 @@ type Demultiplexer interface {
 
 	// AddTimeSamples adds time samples processed by the DogStatsD server into a time sampler pipeline.
 	// The MetricSamples should have their hash computed.
-	AddTimeSamples(sample []metrics.MetricSample)
+	AddTimeSamples(shard uint64, sample []metrics.MetricSample)
 	// AddCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
 	AddCheckSample(sample metrics.MetricSample)
 	// FlushAggregatedData flushes all the aggregated data from the samplers to
@@ -83,19 +82,10 @@ type AgentDemultiplexer struct {
 	dataOutputs
 	*senders
 
-	// stopChan is used while closing the Demultiplexer instance, to cleanly
-	// stop all running goroutines.
-	stopChan chan struct{}
-
 	// XXX(remy): factorize all these members in a struct?
-	// XXX(remy): comment me
-	timeSamplesCh chan []metrics.MetricSample
 	// sharded statsdSamplers
-	statsdSamplers    []*TimeSampler
-	statsdSerializers []serializer.MetricSerializer
-	// buffer slice allocated once per contextResolver to combine and sort
-	// tags, origin detection tags and k8s tags.
-	statsdTagsBuffer   *tagset.HashingTagsAccumulator
+	statsdSamplers     []*TimeSampler
+	statsdSerializers  []serializer.MetricSerializer
 	statsdKeyGenerator *ckey.KeyGenerator
 
 	// how many sharded statsdSamplers exists.
@@ -166,6 +156,16 @@ func InitAndStartAgentDemultiplexer(options DemultiplexerOptions, hostname strin
 
 	sharedForwarder := forwarder.NewDefaultForwarder(options.ForwarderOptions)
 
+	// prepare the serializer
+	// ----------------------
+
+	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder)
+
+	// prepare the embedded aggregator
+	// --
+
+	agg := InitAggregatorWithFlushInterval(sharedSerializer, eventPlatformForwarder, hostname, options.FlushInterval)
+
 	// statsd samplers
 	// ---------------
 
@@ -181,18 +181,8 @@ func InitAndStartAgentDemultiplexer(options DemultiplexerOptions, hostname strin
 
 	for i := 0; i < statsdPipelinesCount; i++ {
 		statsdSerializers[i] = serializer.NewSerializer(sharedForwarder, orchestratorForwarder)
-		statsdSamplers[i] = NewTimeSampler(TimeSamplerID(i), bucketSize, statsdSerializers[i])
+		statsdSamplers[i] = NewTimeSampler(TimeSamplerID(i), bucketSize, agg.MetricSamplePool, bufferSize, statsdSerializers[i])
 	}
-
-	// prepare the serializer
-	// ----------------------
-
-	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder)
-
-	// prepare the embedded aggregator
-	// --
-
-	agg := InitAggregatorWithFlushInterval(sharedSerializer, eventPlatformForwarder, hostname, options.FlushInterval)
 
 	// --
 
@@ -216,14 +206,9 @@ func InitAndStartAgentDemultiplexer(options DemultiplexerOptions, hostname strin
 
 		senders: newSenders(agg),
 
-		stopChan: make(chan struct{}),
-
-		timeSamplesCh: make(chan []metrics.MetricSample, bufferSize),
-
 		statsdSamplers:       statsdSamplers,
 		statsdSerializers:    statsdSerializers,
 		statsdPipelinesCount: statsdPipelinesCount,
-		statsdTagsBuffer:     tagset.NewHashingTagsAccumulator(),
 		statsdKeyGenerator:   ckey.NewKeyGenerator(),
 	}
 
@@ -242,24 +227,22 @@ func (d *AgentDemultiplexer) Run() {
 		if d.forwarders.orchestrator != nil {
 			d.forwarders.orchestrator.Start() //nolint:errcheck
 		} else {
-			log.Debug("not starting the orchestrator forwarder")
+			log.Info("not starting the orchestrator forwarder")
 		}
 		if d.forwarders.eventPlatform != nil {
 			d.forwarders.eventPlatform.Start()
 		} else {
-			log.Debug("not starting the event platform forwarder")
+			log.Info("not starting the event platform forwarder")
 		}
 		if d.forwarders.shared != nil {
 			d.forwarders.shared.Start() //nolint:errcheck
 		} else {
-			log.Debug("not starting the shared forwarder")
+			log.Info("not starting the shared forwarder")
 		}
-		log.Debug("Forwarders started")
+		log.Info("Forwarders started")
 	}
 
-	// XXX(remy): if sharding pipelines > 1
-	go d.samplesLoop()
-
+	log.Info("Demultiplexer started")
 	d.aggregator.run() // this is the blocking call
 }
 
@@ -275,8 +258,6 @@ func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
 func (d *AgentDemultiplexer) Stop(flush bool) {
 	d.m.Lock()
 	defer d.m.Unlock()
-
-	d.stopChan <- struct{}{}
 
 	if d.aggregator != nil {
 		d.aggregator.Stop(flush)
@@ -317,71 +298,12 @@ func (d *AgentDemultiplexer) FlushAggregatedData(start time.Time, waitForSeriali
 // AddTimeSamples adds time samples processed by the DogStatsD server into a time sampler pipeline.
 // The MetricSamples should have their hash computed.
 // This function is called by different goroutines and is thread-safe.
-func (d *AgentDemultiplexer) AddTimeSamples(samples []metrics.MetricSample) {
+func (d *AgentDemultiplexer) AddTimeSamples(shard uint64, samples []metrics.MetricSample) {
 	// distribute the samples on the different statsd samplers
 	// using this channel for latency reasons: its buffering + the fact that it is another goroutine
 	// processing the samples, it should get back to the caller as fast as possible once the samples
 	// are in the channel.
-	d.timeSamplesCh <- samples
-}
-
-// samplesLoop is the main loop sending all received time samples to a selected time sampler.
-// samplesLoop runs in its own goroutine.
-func (d *AgentDemultiplexer) samplesLoop() {
-	for {
-		select {
-		case ms := <-d.timeSamplesCh:
-			// do this telemetry here and not in the samplers goroutines, this way
-			// they won't compete for the telemetry locks.
-			aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
-			tlmProcessed.Add(float64(len(ms)), "dogstatsd_metrics")
-			t := timeNowNano()
-			for i := 0; i < len(ms); i++ {
-				d.addTimeSample(&ms[i], t)
-			}
-			d.aggregator.MetricSamplePool.PutBatch(ms)
-		case <-d.stopChan:
-			// stop all samplers
-			// XXX(remy): should I do it here or in the main Stop() method?
-			for _, sampler := range d.statsdSamplers {
-				sampler.Stop()
-			}
-			log.Info("Stopping Demultiplexer sharding loop")
-			return
-		}
-	}
-}
-
-// XXX(remy): implement this using fastrange instead https://github.com/lemire/fastrange
-func fastrange(key ckey.ContextKey, pipelinesCount int) uint64 {
-	//	log.Infof("fastrange(%d, %d) = %d", uint64(key), uint64(pipelinesCount), uint64(key)%uint64(pipelinesCount))
-	return uint64(key) % uint64(pipelinesCount)
-}
-
-// addTimeSample sends the time sample for processing in one of the available time samplers, making
-// sure it is always sent to the same.
-// addTimeSample runs only once (per demultiplexer) in its own gorountine and is the one distributing
-// the samples on the sampling goroutines.
-func (d *AgentDemultiplexer) addTimeSample(sample *metrics.MetricSample, timestamp float64) {
-	// no sharding
-	if len(d.statsdSamplers) == 1 {
-		d.statsdSamplers[0].addSample(sample, timestamp)
-		return
-	}
-
-	d.statsdTagsBuffer.Append(sample.Tags...) // XXX(remy):
-	shardKey := d.statsdKeyGenerator.Generate(sample.Name, sample.Host, d.statsdTagsBuffer)
-	d.statsdTagsBuffer.Reset()
-
-	shard := fastrange(shardKey, d.statsdPipelinesCount)
-	// XXX(remy): another design would be to not send it through a channel here
-	// but to directly do:
-	//
-	//    go d.statsdSamplers[shard].addSample(sample, timestamp)
-	//
-	// And to have the proper mutex on addSample and during the flush mechanism of the sampler
-	// It will lead to _a lot_ of routines creation though.
-	d.statsdSamplers[shard].addSample(sample, timestamp)
+	d.statsdSamplers[shard].addSamples(samples)
 }
 
 // AddCheckSample adds check sample sent by a check from one of the collectors into a check sampler pipeline.
@@ -466,7 +388,7 @@ func (d *ServerlessDemultiplexer) FlushAggregatedData(start time.Time, waitForSe
 
 // AddTimeSamples adds time samples processed by the DogStatsD server into a time sampler pipeline.
 // The MetricSamples should have their hash computed.
-func (d *ServerlessDemultiplexer) AddTimeSamples(samples []metrics.MetricSample) {
+func (d *ServerlessDemultiplexer) AddTimeSamples(shard uint64, samples []metrics.MetricSample) {
 	panic("not implemented yet.")
 }
 
