@@ -50,9 +50,9 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
 func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) metrics.SketchSeries {
 	ctx, _ := cs.contextResolver.get(ck)
 	ss := metrics.SketchSeries{
-		Name: ctx.Name,
-		Tags: ctx.Tags(),
-		Host: ctx.Host,
+		Name:     ctx.Name,
+		LazyTags: ctx.AcquireTags(),
+		Host:     ctx.Host,
 		// Interval: TODO: investigate
 		Points:     points,
 		ContextKey: ck,
@@ -137,7 +137,7 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 			continue
 		}
 		serie.Name = context.Name + serie.NameSuffix
-		serie.Tags = context.Tags()
+		serie.LazyTags = context.AcquireTags()
 		serie.Host = context.Host
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -20,6 +21,7 @@ import (
 type SketchSeries struct {
 	Name       string          `json:"metric"`
 	Tags       []string        `json:"tags"`
+	LazyTags   *tags.Entry     `json:"-"`
 	Host       string          `json:"host"`
 	Interval   int64           `json:"interval"`
 	Points     []SketchPoint   `json:"points"`
@@ -52,6 +54,14 @@ func init() {
 	expvars.Set("ItemTooBig", &expvarsItemTooBig)
 	expvars.Set("PayloadFull", &expvarsPayloadFull)
 	expvars.Set("UnexpectedItemDrops", &expvarsUnexpectedItemDrops)
+}
+
+// GetTags returns tags for the sketch series.
+func (ss *SketchSeries) GetTags() []string {
+	if ss.LazyTags != nil {
+		return ss.LazyTags.Tags()
+	}
+	return ss.Tags
 }
 
 // MarshalJSON serializes sketch series to JSON.
@@ -204,7 +214,7 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 				return err
 			}
 
-			for _, tag := range ss.Tags {
+			for _, tag := range ss.GetTags() {
 				err = ps.String(sketchTags, tag)
 				if err != nil {
 					return err
@@ -350,7 +360,7 @@ func (sl SketchSeriesList) Marshal() ([]byte, error) {
 		pb.Sketches = append(pb.Sketches, gogen.SketchPayload_Sketch{
 			Metric:      ss.Name,
 			Host:        ss.Host,
-			Tags:        ss.Tags,
+			Tags:        ss.GetTags(),
 			Dogsketches: dsl,
 		})
 	}
@@ -383,4 +393,10 @@ func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.AbstractMarshale
 }
 
 // Release implements AbstractMarshaler.Release
-func (sl SketchSeriesList) Release() {}
+func (sl SketchSeriesList) Release() {
+	for _, s := range sl {
+		if s.LazyTags != nil {
+			s.LazyTags.Release()
+		}
+	}
+}

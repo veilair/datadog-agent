@@ -85,7 +85,7 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 	ctx, _ := s.contextResolver.get(ck)
 	ss := metrics.SketchSeries{
 		Name:       ctx.Name,
-		Tags:       ctx.Tags(),
+		LazyTags:   ctx.AcquireTags(),
 		Host:       ctx.Host,
 		Interval:   s.interval,
 		Points:     points,
@@ -147,7 +147,7 @@ func (s *TimeSampler) flushSeries(cutoffTime int64) metrics.Series {
 				continue
 			}
 			serie.Name = context.Name + serie.NameSuffix
-			serie.Tags = context.Tags()
+			serie.LazyTags = context.AcquireTags()
 			serie.Host = context.Host
 			serie.Interval = s.interval
 

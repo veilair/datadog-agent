@@ -19,6 +19,7 @@ import (
 	"github.com/richardartoul/molecule"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/tags"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/serializer/stream"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -49,6 +50,7 @@ type Serie struct {
 	Name           string          `json:"metric"`
 	Points         []Point         `json:"points"`
 	Tags           []string        `json:"tags"`
+	LazyTags       *tags.Entry     `json:"-"`
 	Host           string          `json:"host"`
 	Device         string          `json:"device,omitempty"` // FIXME(olivier): remove as soon as the v1 API can handle `device` as a regular tag
 	MType          APIMetricType   `json:"type"`
@@ -303,7 +305,7 @@ func (series Series) MarshalSplitCompress(bufferContext *marshaler.BufferContext
 				return err
 			}
 
-			for _, tag := range serie.Tags {
+			for _, tag := range serie.GetTags() {
 				err = ps.String(seriesTags, tag)
 				if err != nil {
 					return err
@@ -427,6 +429,14 @@ func (e Serie) String() string {
 	return string(s)
 }
 
+// GetTags returns tags for the metric serie.
+func (e *Serie) GetTags() []string {
+	if e.LazyTags != nil {
+		return e.LazyTags.Tags()
+	}
+	return e.Tags
+}
+
 //// The following methods implement the StreamJSONMarshaler interface
 //// for support of the enable_stream_payload_serialization option.
 
@@ -483,7 +493,8 @@ func encodeSerie(serie *Serie, stream *jsoniter.Stream) {
 	stream.WriteObjectField("tags")
 	stream.WriteArrayStart()
 	firstTag := true
-	for _, s := range serie.Tags {
+
+	for _, s := range serie.GetTags() {
 		if !firstTag {
 			stream.WriteMore()
 		}

@@ -81,7 +81,8 @@ func (t *tagsetTelemetry) updateTelemetry(tagsetSizes []uint64, atomicCounts []u
 func (t *tagsetTelemetry) updateHugeSketchesTelemetry(sketches *metrics.SketchSeriesList) {
 	tagsetSizes := make([]uint64, len(*sketches))
 	for i, s := range *sketches {
-		tagsetSizes[i] = uint64(len(s.Tags))
+		// FIXME(vickenty) count properly
+		tagsetSizes[i] = uint64(len(s.GetTags()))
 	}
 	t.updateTelemetry(tagsetSizes, t.hugeSketchesCount, t.tlmHugeSketches)
 }
@@ -90,7 +91,8 @@ func (t *tagsetTelemetry) updateHugeSketchesTelemetry(sketches *metrics.SketchSe
 func (t *tagsetTelemetry) updateHugeSeriesTelemetry(series *metrics.Series) {
 	tagsetSizes := make([]uint64, len(*series))
 	for i, s := range *series {
-		tagsetSizes[i] = uint64(len(s.Tags))
+		// FIXME(vickenty) count properly
+		tagsetSizes[i] = uint64(len(s.GetTags()))
 	}
 	t.updateTelemetry(tagsetSizes, t.hugeSeriesCount, t.tlmHugeSeries)
 }

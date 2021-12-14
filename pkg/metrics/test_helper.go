@@ -59,8 +59,8 @@ func AssertSeriesEqual(t *testing.T, expected Series, series Series) {
 func AssertSerieEqual(t *testing.T, expected, actual *Serie) {
 	assert.Equal(t, expected.Name, actual.Name)
 	if expected.Tags != nil {
-		assert.NotNil(t, actual.Tags)
-		AssertTagsEqual(t, expected.Tags, actual.Tags)
+		assert.NotNil(t, actual.GetTags())
+		AssertTagsEqual(t, expected.GetTags(), actual.GetTags())
 	}
 	assert.Equal(t, expected.Host, actual.Host)
 	assert.Equal(t, expected.MType, actual.MType)
@@ -97,12 +97,12 @@ func assertSketchSeriesEqualWithComparator(t assert.TestingT, exp, act SketchSer
 	assert.Equal(t, exp.Name, act.Name, "Name")
 
 	switch {
-	case len(exp.Tags) == 0:
-		assert.Len(t, act.Tags, 0, "(act) Tags: should be empty")
-	case len(act.Tags) == 0:
-		assert.Len(t, exp.Tags, 0, "(act) Tags: shouldn't be empty")
+	case len(exp.GetTags()) == 0:
+		assert.Len(t, act.GetTags(), 0, "(act) Tags: should be empty")
+	case len(act.GetTags()) == 0:
+		assert.Len(t, exp.GetTags(), 0, "(act) Tags: shouldn't be empty")
 	default:
-		AssertTagsEqual(t, exp.Tags, act.Tags)
+		AssertTagsEqual(t, exp.GetTags(), act.GetTags())
 	}
 
 	assert.Equal(t, exp.Host, act.Host, "Host")

@@ -26,6 +26,12 @@ func (c *Context) Tags() []string {
 	return c.tags.Tags()
 }
 
+// AcquireTags returns a new reference to the compressed tags stored
+// in the context. Callers must call Release() on the returned value.
+func (c *Context) AcquireTags() *tags.Entry {
+	return c.tags.Acquire()
+}
+
 // contextResolver allows tracking and expiring contexts
 type contextResolver struct {
 	contextsByKey map[ckey.ContextKey]*Context
