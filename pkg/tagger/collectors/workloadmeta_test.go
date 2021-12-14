@@ -126,7 +126,6 @@ func TestHandleKubePod(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source: podSource,
 					Entity: podTaggerEntityID,
 					HighCardTags: []string{
 						"gitcommit:foobar",
@@ -175,7 +174,6 @@ func TestHandleKubePod(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source:       podSource,
 					Entity:       podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
@@ -230,7 +228,6 @@ func TestHandleECSTask(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source:       taskSource,
 					Entity:       OrchestratorScopeEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
@@ -381,7 +378,6 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source: containerSource,
 					Entity: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
@@ -421,7 +417,6 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source: containerSource,
 					Entity: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
@@ -456,7 +451,6 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source: containerSource,
 					Entity: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
@@ -493,7 +487,6 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source: containerSource,
 					Entity: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
@@ -524,7 +517,6 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source: containerSource,
 					Entity: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_id:%s", entityID.ID),
@@ -559,7 +551,6 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source: containerSource,
 					Entity: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_id:%s", entityID.ID),
@@ -599,7 +590,6 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source: containerSource,
 					Entity: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
@@ -633,7 +623,6 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source: containerSource,
 					Entity: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
@@ -677,7 +666,6 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source: containerSource,
 					Entity: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
@@ -712,7 +700,6 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source: containerSource,
 					Entity: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
@@ -740,7 +727,6 @@ func TestHandleContainer(t *testing.T) {
 			},
 			expected: []*TagInfo{
 				{
-					Source: containerSource,
 					Entity: taggerEntityID,
 					HighCardTags: []string{
 						fmt.Sprintf("container_name:%s", containerName),
@@ -803,7 +789,6 @@ func TestHandleDelete(t *testing.T) {
 
 	expected := []*TagInfo{
 		{
-			Source:       podSource,
 			Entity:       podTaggerEntityID,
 			DeleteEntity: true,
 		},
@@ -833,7 +818,6 @@ func TestHandleContainerStaticTags(t *testing.T) {
 
 	expected := []*TagInfo{
 		{
-			Source: containerSource,
 			Entity: fmt.Sprintf("container_id://%s", container.ID),
 			HighCardTags: []string{
 				fmt.Sprintf("container_id:%s", container.ID),
