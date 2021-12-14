@@ -253,3 +253,6 @@ func writeServiceCheck(sc *ServiceCheck, stream *jsoniter.Stream) error {
 	}
 	return writer.Flush()
 }
+
+// Release implements AbstractMarshaler.Release
+func (sc ServiceChecks) Release() {}

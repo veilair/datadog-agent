@@ -318,6 +318,8 @@ func (s *Serializer) SendSeries(series marshaler.StreamJSONMarshaler) error {
 		extraHeaders = protobufExtraHeadersWithCompression
 	}
 
+	series.Release()
+
 	if err != nil {
 		return fmt.Errorf("dropping series payload: %s", err)
 	}
@@ -349,6 +351,8 @@ func (s *Serializer) SendSketch(sketches marshaler.Marshaler) error {
 	if err != nil {
 		return fmt.Errorf("dropping sketch payload: %s", err)
 	}
+
+	sketches.Release()
 
 	return s.Forwarder.SubmitSketchSeries(splitSketches, extraHeaders)
 }

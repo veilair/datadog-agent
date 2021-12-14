@@ -81,6 +81,8 @@ func (d *dummyMarshaller) MarshalSplitCompress(bufferContext *marshaler.BufferCo
 	return nil, fmt.Errorf("not implemented")
 }
 
+func (d *dummyMarshaller) Release() {}
+
 func decompressPayload(payload []byte) ([]byte, error) {
 	r, err := zlib.NewReader(bytes.NewReader(payload))
 	if err != nil {

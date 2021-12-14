@@ -376,3 +376,6 @@ func (events Events) CreateMarshalersBySourceType() []marshaler.StreamJSONMarsha
 	}
 	return values
 }
+
+// Release implements AbstractMarshaler.Release
+func (events Events) Release() {}

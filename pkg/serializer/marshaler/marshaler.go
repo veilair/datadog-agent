@@ -40,6 +40,9 @@ type AbstractMarshaler interface {
 
 	// MarshalSplitCompress uses the stream compressor to marshal and compress payloads.
 	MarshalSplitCompress(*BufferContext) ([]*[]byte, error)
+
+	// Release frees resources held by the implementor after serialization.
+	Release()
 }
 
 // StreamJSONMarshaler is an interface for metrics that are able to serialize themselves in a stream

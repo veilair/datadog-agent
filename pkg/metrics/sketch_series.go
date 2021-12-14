@@ -381,3 +381,6 @@ func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.AbstractMarshale
 	}
 	return splitPayloads, nil
 }
+
+// Release implements AbstractMarshaler.Release
+func (sl SketchSeriesList) Release() {}

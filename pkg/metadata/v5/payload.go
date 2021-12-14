@@ -74,3 +74,6 @@ func (m *MarshalledGohaiPayload) UnmarshalJSON(bytes []byte) error {
 func (p *Payload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) ([]*[]byte, error) {
 	return nil, fmt.Errorf("V5 Payload MarshalSplitCompress is not implemented")
 }
+
+// Release implements AbstractMarshaler.Release
+func (p *Payload) Release() {}

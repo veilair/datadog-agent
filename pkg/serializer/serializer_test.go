@@ -135,6 +135,7 @@ func (p *testPayload) WriteItem(stream *jsoniter.Stream, i int) error {
 }
 func (p *testPayload) Len() int                  { return 1 }
 func (p *testPayload) DescribeItem(i int) string { return "description" }
+func (p *testPayload) Release()                  {}
 
 type testErrorPayload struct{}
 
@@ -160,6 +161,7 @@ func (p *testErrorPayload) WriteItem(stream *jsoniter.Stream, i int) error {
 }
 func (p *testErrorPayload) Len() int                  { return 1 }
 func (p *testErrorPayload) DescribeItem(i int) string { return "description" }
+func (p *testErrorPayload) Release()                  {}
 
 func mkPayloads(payload []byte, compress bool) (forwarder.Payloads, error) {
 	payloads := forwarder.Payloads{}

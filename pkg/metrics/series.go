@@ -519,6 +519,15 @@ func encodeSerie(serie *Serie, stream *jsoniter.Stream) {
 	stream.WriteObjectEnd()
 }
 
+// Release implements AbstractMarshaler.Release
+func (series Series) Release() {
+	for _, s := range series {
+		if s.LazyTags != nil {
+			s.LazyTags.Release()
+		}
+	}
+}
+
 func encodePoints(points []Point, stream *jsoniter.Stream) {
 	var needComa bool
 
