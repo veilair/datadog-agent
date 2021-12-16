@@ -19,10 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-const (
-	workloadmetaCollectorName = "workloadmeta"
-)
-
 type processor interface {
 	ProcessTagInfo([]*TagInfo)
 }
