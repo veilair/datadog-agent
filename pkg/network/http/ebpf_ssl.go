@@ -46,6 +46,7 @@ var gnuTLSProbes = []string{
 	"uretprobe/gnutls_record_recv",
 	"uprobe/gnutls_record_send",
 	"uprobe/gnutls_bye",
+	"uprobe/gnutls_deinit",
 }
 
 const (
