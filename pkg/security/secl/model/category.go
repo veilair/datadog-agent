@@ -20,6 +20,8 @@ const (
 	ProcessCategory EventCategory = "Process Activity"
 	// KernelCategory Kernel events
 	KernelCategory EventCategory = "Kernel Activity"
+	// NetworkCategory network events
+	NetworkCategory EventCategory = "Network Activity"
 )
 
 // GetAllCategories returns all categories
@@ -28,6 +30,7 @@ func GetAllCategories() []EventCategory {
 		FIMCategory,
 		ProcessCategory,
 		KernelCategory,
+		NetworkCategory,
 	}
 }
 
@@ -38,6 +41,8 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		return ProcessCategory
 	case "bpf", "selinux":
 		return KernelCategory
+	case "dns":
+		return NetworkCategory
 	}
 
 	return FIMCategory
