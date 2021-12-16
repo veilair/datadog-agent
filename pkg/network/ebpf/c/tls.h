@@ -15,16 +15,22 @@
 // Latency connection = time from the 1st packet (SYN) to the 1st payload packet (TLS_APP)
 static __always_inline void http_enqueue_with_tags(skb_info_t *skb_info, u64 tags, u64 started, u64 classified) {
     http_transaction_t new_entry = { 0 };
+    new_entry.owned_by_src_port = skb_info->tup.sport;
     bpf_map_update_elem(&http_in_flight, &skb_info->tup, &new_entry, BPF_NOEXIST);
     http_transaction_t *http = bpf_map_lookup_elem(&http_in_flight, &skb_info->tup);
     if (!http) {
         return;
     }
-    http->request_started = started;
-    http->response_last_seen = classified;
-    http->response_status_code = 200;
+    int have_tag = http->tags > 0;
+    if (!have_tag) {
+        http->request_started = started;
+        http->response_last_seen = classified;
+        http->response_status_code = 200;
+    }
     http->tags |= tags;
-    http_enqueue(http, &skb_info->tup);
+    if (!have_tag) {
+        http_enqueue(http, &skb_info->tup);
+    }
 }
 
 static __always_inline void tls_cleanup(skb_info_t *skb_info) {
