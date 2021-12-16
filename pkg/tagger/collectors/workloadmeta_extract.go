@@ -150,6 +150,13 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInf
 	tags.AddHigh("container_name", container.Name)
 	tags.AddHigh("container_id", container.ID)
 
+	// these tags need to be set before collecting tags from pods, as the
+	// orchestrator tags have priority and will replace these if they're
+	// set.
+	tags.AddLow("image_name", image.Name)
+	tags.AddLow("short_image", image.ShortName)
+	tags.AddLow("image_tag", image.Tag)
+
 	if podID, ok := container.Labels[k8sLabelPodUID]; ok {
 		pod, err := c.store.GetKubernetesPod(podID)
 		if err == nil {
@@ -159,17 +166,6 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*TagInf
 		if err != nil {
 			log.Debugf("container %q cannot get tags from pod %s: %s (sources: %s)", container.ID, podID, err, ev.Sources)
 		}
-	} else {
-		// we only collect image names and tags from the container
-		// runtime itself outside of kubernetes, as an image name in
-		// the pod might not match the image name resolved by the
-		// container runtime. for instance, "datadog/agent" in the pod
-		// spec might be resolved to "docker.io/datadog/agent" by the
-		// runtime, and might confuse users (and break backwards
-		// compatibility!)
-		tags.AddLow("image_name", image.Name)
-		tags.AddLow("short_image", image.ShortName)
-		tags.AddLow("image_tag", image.Tag)
 	}
 
 	if taskARN, ok := container.Labels[ecsLabelTaskARN]; ok {
@@ -469,6 +465,12 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 	tags.AddLow("kube_container_name", containerName)
 	tags.AddHigh("display_container_name", fmt.Sprintf("%s_%s", containerName, pod.Name))
 
+	// this replaces the image-related tags coming from the runtime if
+	// they're set, as an image name in the pod might not match the image
+	// name resolved by the container runtime. for instance,
+	// "datadog/agent" in the pod spec might be resolved to
+	// "docker.io/datadog/agent" by the runtime, and might confuse users
+	// (and break backwards compatibility!)
 	image := podContainer.Image
 	tags.AddLow("image_name", image.Name)
 	tags.AddLow("short_image", image.ShortName)
