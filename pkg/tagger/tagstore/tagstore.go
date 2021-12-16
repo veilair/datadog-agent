@@ -150,8 +150,8 @@ func (s *TagStore) notifySubscribers(events []types.EntityEvent) {
 	s.subscriber.Notify(events)
 }
 
-// Prune deletes tags for entities that are deleted or with empty entries.
-// This is to be called regularly from the user class.
+// Prune deletes tags for entities that have been marked as deleted. This is to
+// be called regularly from the user class.
 func (s *TagStore) Prune() {
 	s.Lock()
 	defer s.Unlock()
@@ -161,6 +161,9 @@ func (s *TagStore) Prune() {
 
 	for entity, storedTags := range s.store {
 		if storedTags.isExpired(now) {
+			prefix, _ := containers.SplitEntityName(entity)
+			telemetry.StoredEntities.Inc(prefix)
+
 			telemetry.PrunedEntities.Inc()
 			delete(s.store, entity)
 			events = append(events, types.EntityEvent{
