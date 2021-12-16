@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -38,7 +37,6 @@ type TagStore struct {
 
 	store     map[string]sourceTags
 	telemetry map[string]float64
-	InfoIn    chan []*collectors.TagInfo
 
 	subscriber *subscriber.Subscriber
 
@@ -54,37 +52,8 @@ func newTagStoreWithClock(clock clock.Clock) *TagStore {
 	return &TagStore{
 		telemetry:  make(map[string]float64),
 		store:      make(map[string]sourceTags),
-		InfoIn:     make(chan []*collectors.TagInfo),
 		subscriber: subscriber.NewSubscriber(),
 		clock:      clock,
-	}
-}
-
-// Run performs background maintenance for TagStore.
-func (s *TagStore) Run(ctx context.Context) {
-	pruneTicker := time.NewTicker(1 * time.Minute)
-	telemetryTicker := time.NewTicker(1 * time.Minute)
-	health := health.RegisterLiveness("tagger-store")
-
-	for {
-		select {
-		case msg := <-s.InfoIn:
-			s.ProcessTagInfo(msg)
-
-		case <-telemetryTicker.C:
-			s.collectTelemetry()
-
-		case <-pruneTicker.C:
-			s.Prune()
-
-		case <-health.C:
-
-		case <-ctx.Done():
-			pruneTicker.Stop()
-			telemetryTicker.Stop()
-
-			return
-		}
 	}
 }
 
@@ -96,15 +65,6 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*collectors.TagInfo) {
 	defer s.Unlock()
 
 	for _, info := range tagInfos {
-		if info == nil {
-			log.Errorf("skipping nil message")
-			continue
-		}
-		if info.Entity == "" {
-			log.Errorf("empty entity name, skipping message")
-			continue
-		}
-
 		storedTags, exist := s.store[info.Entity]
 
 		if info.DeleteEntity {
@@ -119,6 +79,9 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*collectors.TagInfo) {
 		eventType := types.EventTypeModified
 		if !exist {
 			eventType = types.EventTypeAdded
+
+			prefix, _ := containers.SplitEntityName(info.Entity)
+			telemetry.StoredEntities.Inc(prefix)
 		}
 
 		// TODO: check if real change
@@ -135,6 +98,31 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*collectors.TagInfo) {
 
 	if len(events) > 0 {
 		s.notifySubscribers(events)
+	}
+}
+
+// Run performs background maintenance for TagStore.
+func (s *TagStore) Run(ctx context.Context) {
+	pruneTicker := time.NewTicker(1 * time.Minute)
+	// telemetryTicker := time.NewTicker(1 * time.Minute)
+	health := health.RegisterLiveness("tagger-store")
+
+	for {
+		select {
+		// case <-telemetryTicker.C:
+		// 	s.collectTelemetry()
+
+		case <-pruneTicker.C:
+			s.Prune()
+
+		case <-health.C:
+
+		case <-ctx.Done():
+			pruneTicker.Stop()
+			// telemetryTicker.Stop()
+
+			return
+		}
 	}
 }
 

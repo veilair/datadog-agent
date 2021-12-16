@@ -45,7 +45,7 @@ func NewTagger(store workloadmeta.Store) *Tagger {
 
 	t := &Tagger{
 		store:     tagStore,
-		collector: collectors.NewWorkloadMetaCollector(ctx, store, tagStore.InfoIn),
+		collector: collectors.NewWorkloadMetaCollector(ctx, store, tagStore),
 		ctx:       ctx,
 		cancel:    cancel,
 	}
@@ -57,7 +57,6 @@ func NewTagger(store workloadmeta.Store) *Tagger {
 // for this host. It then starts the collection logic and is ready for
 // requests.
 func (t *Tagger) Init() error {
-	go t.store.Run(t.ctx)
 	go t.collector.Stream(t.ctx)
 
 	return nil
