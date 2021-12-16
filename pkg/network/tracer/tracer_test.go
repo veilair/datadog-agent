@@ -31,6 +31,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -1528,9 +1529,7 @@ func TestHTTPStats(t *testing.T) {
 	assert.Equal(t, 0, httpReqStats[4].Count, "500s") // 500
 }
 
-var regexSSL = regexp.MustCompile(`/[^\ ]+libssl.so[^\ ]*`)
-
-func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
+func TestHTTPSViaLibraryIntegration(t *testing.T) {
 	if !httpSupported(t) {
 		t.Skip("HTTPS feature not available on pre 4.1.0 kernels")
 	}
@@ -1539,22 +1538,52 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 		t.Skip("this feature is not yet support on arm")
 	}
 
-	wget, err := exec.LookPath("wget")
-	if err != nil {
-		t.Skip("wget not found; skipping test.")
+	fetchCommands := [][]string{
+		{"wget", "--no-check-certificate", "-O/dev/null"},
+		{"curl", "--http1.1", "-k", "-o/dev/null"},
+	}
+	tests := []struct {
+		name        string
+		fetchCmd    []string
+		libsslRegex *regexp.Regexp
+		tags        netebpf.ConnTag
+	}{
+		{name: "libssl.so", libsslRegex: regexp.MustCompile(`/[^\ ]+libssl.so[^\ ]*`), tags: netebpf.TLS | netebpf.OpenSSL},
+		{name: "libgnutls.so", libsslRegex: regexp.MustCompile(`/[^\ ]+libgnutls.so[^\ ]*`), tags: netebpf.TLS | netebpf.GnuTLS},
 	}
 
-	ldd, err := exec.LookPath("ldd")
-	if err != nil {
-		t.Skip("ldd not found; skipping test.")
-	}
+	// Spin-up HTTPS server
+	serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
+		EnableTLS: true,
+	})
+	defer serverDoneFn()
 
-	linked, _ := exec.Command(ldd, wget).Output()
-	libSSLPath := regexSSL.FindString(string(linked))
-	if _, err := os.Stat(libSSLPath); len(libSSLPath) == 0 || os.IsNotExist(err) {
-		t.Skip("libssl.so not found; skipping test.")
-	}
+	for _, fetchCmd := range fetchCommands {
+		for _, test := range tests {
+			test.fetchCmd = fetchCmd
+			t.Run(test.fetchCmd[0]+" "+test.name, func(t *testing.T) {
+				fetch, err := exec.LookPath(test.fetchCmd[0])
+				if err != nil {
+					t.Skipf("%s not found; skipping test.", test.fetchCmd)
+				}
+				ldd, err := exec.LookPath("ldd")
+				if err != nil {
+					t.Skip("ldd not found; skipping test.")
+				}
+				linked, _ := exec.Command(ldd, fetch).Output()
+				libSSLPath := test.libsslRegex.FindString(string(linked))
+				if _, err := os.Stat(libSSLPath); len(libSSLPath) == 0 || os.IsNotExist(err) {
+					t.Skipf("%s not linked with %s; skipping test.", test.fetchCmd[0], test.name)
+				}
 
+				testHTTPSLibrary(t, test.fetchCmd, test.tags)
+
+			})
+		}
+	}
+}
+
+func testHTTPSLibrary(t *testing.T, fetchCmd []string, tags netebpf.ConnTag) {
 	// Start tracer with HTTPS support
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
@@ -1563,23 +1592,18 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 	require.NoError(t, err)
 	defer tr.Stop()
 
-	// Spin-up HTTPS server
-	serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
-		EnableTLS: true,
-	})
-	defer serverDoneFn()
-
-	// Run wget once to make sure the OpenSSL is detected and uprobes are attached
-	exec.Command(wget).Run()
+	// Run fetchCmd once to make sure the OpenSSL is detected and uprobes are attached
+	exec.Command(fetchCmd[0]).Run()
 	time.Sleep(time.Second)
 
-	// Issue request using `wget`
+	// Issue request using fetchCmd (wget, curl, ...)
 	// This is necessary (as opposed to using net/http) because we want to
-	// test a HTTP client linked to OpenSSL
+	// test a HTTP client linked to OpenSSL or GnuTLS
 	const targetURL = "https://127.0.0.1:443/200/foobar"
-	requestCmd := exec.Command(wget, "--no-check-certificate", "-O/dev/null", targetURL)
+	cmd := append(fetchCmd, targetURL)
+	requestCmd := exec.Command(cmd[0], cmd[1:]...)
 	err = requestCmd.Run()
-	require.NoErrorf(t, err, "failed to issue request via wget: %s", err)
+	require.NoErrorf(t, err, "failed to issue request via %s: %s", fetchCmd, err)
 
 	require.Eventuallyf(t, func() bool {
 		payload, err := tr.GetActiveConnections("1")
@@ -1587,14 +1611,15 @@ func TestHTTPSViaOpenSSLIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		for key := range payload.HTTP {
-			if key.Path == "/200/foobar" {
+		for key, stats := range payload.HTTP {
+			statsTags := stats[(200/100)-1].Tags
+			if key.Path == "/200/foobar" && statsTags == tags {
 				return true
 			}
 		}
 
 		return false
-	}, 3*time.Second, 10*time.Millisecond, "couldn't find HTTPS stats")
+	}, 3*time.Second, 500*time.Millisecond, "couldn't find HTTPS stats")
 }
 
 func TestRuntimeCompilerEnvironmentVar(t *testing.T) {
