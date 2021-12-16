@@ -14,7 +14,7 @@ static __always_inline void http_prepare_key(u32 cpu, http_batch_key_t *key, htt
     key->page_num = batch_state->idx % HTTP_BATCH_PAGES;
 }
 
-static __always_inline void http_notify_batch(void *ctx) {
+static __always_inline void http_notify_batch(struct pt_regs *ctx) {
     u32 cpu = bpf_get_smp_processor_id();
 
     http_batch_state_t *batch_state = bpf_map_lookup_elem(&http_batch_state, &cpu);
