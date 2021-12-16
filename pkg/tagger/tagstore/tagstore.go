@@ -109,9 +109,6 @@ func (s *TagStore) Run(ctx context.Context) {
 
 	for {
 		select {
-		// case <-telemetryTicker.C:
-		// 	s.collectTelemetry()
-
 		case <-pruneTicker.C:
 			s.Prune()
 
@@ -123,26 +120,6 @@ func (s *TagStore) Run(ctx context.Context) {
 
 			return
 		}
-	}
-}
-
-func (s *TagStore) collectTelemetry() {
-	// our telemetry package does not seem to have a way to reset a Gauge,
-	// so we need to keep track of all the labels we use, and re-set them
-	// to zero after we're done to ensure a new run of collectTelemetry
-	// will not forget to clear them if they disappear.
-
-	s.Lock()
-	defer s.Unlock()
-
-	for _, entityTags := range s.store {
-		prefix, _ := containers.SplitEntityName(entityTags.entityID)
-		s.telemetry[prefix]++
-	}
-
-	for prefix, storedEntities := range s.telemetry {
-		telemetry.StoredEntities.Set(storedEntities, prefix)
-		s.telemetry[prefix] = 0
 	}
 }
 
