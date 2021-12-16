@@ -25,7 +25,7 @@ const (
 )
 
 type httpTX C.http_transaction_t
-type tlsTX C.tls_transaction_t
+type tlsSession C.tls_session_t
 type httpNotification C.http_batch_notification_t
 type httpBatch C.http_batch_t
 type httpBatchKey C.http_batch_key_t

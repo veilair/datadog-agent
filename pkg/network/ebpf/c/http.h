@@ -103,20 +103,6 @@ static __always_inline void http_enqueue(http_transaction_t *http, conn_tuple_t 
     }
 }
 
-static __always_inline void add_tags_http_tuple_enqueue(skb_info_t *skb_info, u64 tags, u64 started, u64 classified) {
-    http_transaction_t new_entry = { 0 };
-    bpf_map_update_elem(&http_in_flight, &skb_info->tup, &new_entry, BPF_NOEXIST);
-    http_transaction_t *http = bpf_map_lookup_elem(&http_in_flight, &skb_info->tup);
-    if (!http) {
-        return;
-    }
-    http->request_started = started;
-    http->response_last_seen = classified;
-    http->response_status_code = 200;
-    http->tags |= tags;
-    http_enqueue(http, &skb_info->tup);
-}
-
 static __always_inline int http_begin_request(http_transaction_t *http, http_method_t method, char *buffer, conn_tuple_t *tup) {
     // This can happen in the context of HTTP keep-alives;
     if (http_responding(http)) {

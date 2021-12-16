@@ -33,6 +33,6 @@ typedef struct {
     __u8 __padding;
     __u64 started;
     __u64 classified;
-} tls_transaction_t;
+} tls_session_t;
 
 #endif

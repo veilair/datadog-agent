@@ -5,8 +5,27 @@
 #include "tls-types.h"
 #include "tls-maps.h"
 #include "ip.h"
+#include "http.h"
 
 #include <uapi/linux/ptrace.h>
+
+// TLS classification generate an HTTPStats event
+// that will include the tag and the latency of the connection
+//
+// Latency connection = time from the 1st packet (SYN) to the 1st payload packet (TLS_APP)
+static __always_inline void http_enqueue_with_tags(skb_info_t *skb_info, u64 tags, u64 started, u64 classified) {
+    http_transaction_t new_entry = { 0 };
+    bpf_map_update_elem(&http_in_flight, &skb_info->tup, &new_entry, BPF_NOEXIST);
+    http_transaction_t *http = bpf_map_lookup_elem(&http_in_flight, &skb_info->tup);
+    if (!http) {
+        return;
+    }
+    http->request_started = started;
+    http->response_last_seen = classified;
+    http->response_status_code = 200;
+    http->tags |= tags;
+    http_enqueue(http, &skb_info->tup);
+}
 
 static __always_inline void tls_cleanup(skb_info_t *skb_info) {
     bpf_map_delete_elem(&tls_in_flight, &skb_info->tup);
@@ -64,8 +83,8 @@ int socket__proto_tls(struct __sk_buff* skb) {
     if (!is_ephemeral_port(skb_info.tup.sport)) {
         flip_tuple(&skb_info.tup);
     }
-    tls_transaction_t *tls = NULL;
-    tls_transaction_t new_entry = { 0 };
+    tls_session_t *tls = NULL;
+    tls_session_t new_entry = { 0 };
     bpf_map_update_elem(&tls_in_flight, &skb_info.tup, &new_entry, BPF_NOEXIST);
     tls = bpf_map_lookup_elem(&tls_in_flight, &skb_info.tup);
     if (tls == NULL) {
@@ -93,7 +112,7 @@ int socket__proto_tls(struct __sk_buff* skb) {
     if (tls_hdr.app == TLS_APPLICATION_DATA) {
         tls->handshake_done = 1;
         tls->classified = bpf_ktime_get_ns();
-        add_tags_http_tuple_enqueue(&skb_info, TLS, tls->started, tls->classified);
+        http_enqueue_with_tags(&skb_info, TLS, tls->started, tls->classified);
     }
     __builtin_memcpy(&tls->tup, &skb_info.tup, sizeof(conn_tuple_t));
     tls->isTLS = 1;

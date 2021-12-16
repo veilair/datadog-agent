@@ -55,11 +55,11 @@ func dumpMapsHandler(managerMap *manager.Map, manager *manager.Manager) string {
 			output.WriteString(spew.Sdump(key, value))
 		}
 
-	case tlsInFlightMap: // maps/tls_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value tlsTX
-		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'tlsTX'\n")
+	case tlsInFlightMap: // maps/tls_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value tlsSession
+		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'tlsSession'\n")
 		iter := currentMap.Iterate()
 		var key ebpf.ConnTuple
-		var value tlsTX
+		var value tlsSession
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
