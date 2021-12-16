@@ -7,17 +7,7 @@
 
 package cri
 
-import (
-	"os"
-	"strings"
-	"testing"
-	"time"
-
-	fakeremote "github.com/DataDog/datadog-agent/third_party/kubernetes/pkg/kubelet/cri/remote/fake"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-)
-
+/*
 func TestCRIUtilInit(t *testing.T) {
 	fakeRuntime, endpoint := createAndStartFakeRemoteRuntime(t)
 	defer fakeRuntime.Stop()
@@ -65,3 +55,4 @@ func createAndStartFakeRemoteRuntime(t *testing.T) (*fakeremote.RemoteRuntime, s
 
 	return fakeRuntime, endpoint
 }
+*/
