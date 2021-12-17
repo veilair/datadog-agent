@@ -31,7 +31,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/http"
 	"github.com/DataDog/datadog-agent/pkg/network/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -42,6 +41,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
+)
+
+type connTag = uint64
+
+const (
+	tagGnuTLS  connTag = 1 // netebpf.GnuTLS
+	tagOpenSSL connTag = 2 // netebpf.OpenSSL
+	tagTLS     connTag = 4 // netebpf.TLS
 )
 
 var (
@@ -1618,7 +1625,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 			statsTags := stats[(200/100)-1].Tags
 			// debian 10 have curl binary linked with openssl and gnutls but use only openssl during tls query (there no runtime flag available)
 			// this make harder to map lib and tags, one set of tag should match but not both
-			if key.Path == "/200/foobar" && (statsTags == (netebpf.TLS|netebpf.GnuTLS) || statsTags == (netebpf.TLS|netebpf.OpenSSL)) {
+			if key.Path == "/200/foobar" && (statsTags == (tagTLS|tagGnuTLS) || statsTags == (tagTLS|tagOpenSSL)) {
 				return true
 			}
 			t.Logf("HTTP stat didn't match criteria %v tags 0x%x\n", key, statsTags)
