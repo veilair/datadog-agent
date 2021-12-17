@@ -1621,6 +1621,7 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 			if key.Path == "/200/foobar" && (statsTags == (netebpf.TLS|netebpf.GnuTLS) || statsTags == (netebpf.TLS|netebpf.OpenSSL)) {
 				return true
 			}
+			t.Logf("HTTP stat didn't match criteria %v tags 0x%x\n", key, statsTags)
 		}
 
 		return false
