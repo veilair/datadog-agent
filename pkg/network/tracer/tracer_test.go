@@ -1538,18 +1538,16 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 		t.Skip("this feature is not yet support on arm")
 	}
 
-	fetchCommands := [][]string{
-		{"wget", "--no-check-certificate", "-O/dev/null"},
-		{"curl", "--http1.1", "-k", "-o/dev/null"},
+	tlsLibs := []*regexp.Regexp{
+		regexp.MustCompile(`/[^\ ]+libssl.so[^\ ]*`),
+		regexp.MustCompile(`/[^\ ]+libgnutls.so[^\ ]*`),
 	}
 	tests := []struct {
-		name        string
-		fetchCmd    []string
-		libsslRegex *regexp.Regexp
-		tags        netebpf.ConnTag
+		name     string
+		fetchCmd []string
 	}{
-		{name: "libssl.so", libsslRegex: regexp.MustCompile(`/[^\ ]+libssl.so[^\ ]*`), tags: netebpf.TLS | netebpf.OpenSSL},
-		{name: "libgnutls.so", libsslRegex: regexp.MustCompile(`/[^\ ]+libgnutls.so[^\ ]*`), tags: netebpf.TLS | netebpf.GnuTLS},
+		{name: "wget", fetchCmd: []string{"wget", "--no-check-certificate", "-O/dev/null"}},
+		{name: "curl", fetchCmd: []string{"curl", "--http1.1", "-k", "-o/dev/null"}},
 	}
 
 	// Spin-up HTTPS server
@@ -1558,32 +1556,37 @@ func TestHTTPSViaLibraryIntegration(t *testing.T) {
 	})
 	defer serverDoneFn()
 
-	for _, fetchCmd := range fetchCommands {
-		for _, test := range tests {
-			test.fetchCmd = fetchCmd
-			t.Run(test.fetchCmd[0]+" "+test.name, func(t *testing.T) {
-				fetch, err := exec.LookPath(test.fetchCmd[0])
-				if err != nil {
-					t.Skipf("%s not found; skipping test.", test.fetchCmd)
-				}
-				ldd, err := exec.LookPath("ldd")
-				if err != nil {
-					t.Skip("ldd not found; skipping test.")
-				}
-				linked, _ := exec.Command(ldd, fetch).Output()
-				libSSLPath := test.libsslRegex.FindString(string(linked))
-				if _, err := os.Stat(libSSLPath); len(libSSLPath) == 0 || os.IsNotExist(err) {
-					t.Skipf("%s not linked with %s; skipping test.", test.fetchCmd[0], test.name)
-				}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fetch, err := exec.LookPath(test.fetchCmd[0])
+			if err != nil {
+				t.Skipf("%s not found; skipping test.", test.fetchCmd)
+			}
+			ldd, err := exec.LookPath("ldd")
+			if err != nil {
+				t.Skip("ldd not found; skipping test.")
+			}
+			linked, _ := exec.Command(ldd, fetch).Output()
 
-				testHTTPSLibrary(t, test.fetchCmd, test.tags)
+			foundSSLLib := false
+			for _, lib := range tlsLibs {
+				libSSLPath := lib.FindString(string(linked))
+				if _, err := os.Stat(libSSLPath); err == nil {
+					foundSSLLib = true
+					break
+				}
+			}
+			if !foundSSLLib {
+				t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
+			}
 
-			})
-		}
+			testHTTPSLibrary(t, test.fetchCmd)
+
+		})
 	}
 }
 
-func testHTTPSLibrary(t *testing.T, fetchCmd []string, tags netebpf.ConnTag) {
+func testHTTPSLibrary(t *testing.T, fetchCmd []string) {
 	// Start tracer with HTTPS support
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
@@ -1613,7 +1616,9 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, tags netebpf.ConnTag) {
 
 		for key, stats := range payload.HTTP {
 			statsTags := stats[(200/100)-1].Tags
-			if key.Path == "/200/foobar" && statsTags == tags {
+			// debian 10 have curl binary linked with openssl and gnutls but use only openssl during tls query (there no runtime flag available)
+			// this make harder to map lib and tags, one set of tag should match but not both
+			if key.Path == "/200/foobar" && (statsTags == (netebpf.TLS|netebpf.GnuTLS) || statsTags == (netebpf.TLS|netebpf.OpenSSL)) {
 				return true
 			}
 		}
