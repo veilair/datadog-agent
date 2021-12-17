@@ -48,7 +48,7 @@ func TestHandleKubePod(t *testing.T) {
 		annotationsAsTags map[string]string
 		nsLabelsAsTags    map[string]string
 		pod               workloadmeta.KubernetesPod
-		expected          []*TagInfo
+		expected          *TagInfo
 	}{
 		{
 			name: "fully formed pod",
@@ -123,38 +123,36 @@ func TestHandleKubePod(t *testing.T) {
 				// Phase tags
 				Phase: "Running",
 			},
-			expected: []*TagInfo{
-				{
-					Entity: podTaggerEntityID,
-					HighCardTags: []string{
-						"gitcommit:foobar",
-					},
-					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
-						"kube_ownerref_name:datadog-agent",
-					},
-					LowCardTags: append([]string{
-						fmt.Sprintf("kube_app_instance:%s", podName),
-						fmt.Sprintf("kube_app_name:%s", svc),
-						fmt.Sprintf("kube_app_version:%s", version),
-						fmt.Sprintf("kube_deployment:%s", svc),
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						"component:agent",
-						"kube_app_component:agent",
-						"kube_app_managed_by:helm",
-						"kube_app_part_of:datadog",
-						"kube_ownerref_kind:deployment",
-						"kube_service:service1",
-						"kube_service:service2",
-						"ns-team:containers",
-						"ns_env:dev",
-						"pod_phase:running",
-						"pod_template_version:1.0.0",
-						"team:container-integrations",
-						"tier:node",
-					}, standardTags...),
-					StandardTags: standardTags,
+			expected: &TagInfo{
+				Entity: podTaggerEntityID,
+				HighCardTags: []string{
+					"gitcommit:foobar",
 				},
+				OrchestratorCardTags: []string{
+					fmt.Sprintf("pod_name:%s", podName),
+					"kube_ownerref_name:datadog-agent",
+				},
+				LowCardTags: append([]string{
+					fmt.Sprintf("kube_app_instance:%s", podName),
+					fmt.Sprintf("kube_app_name:%s", svc),
+					fmt.Sprintf("kube_app_version:%s", version),
+					fmt.Sprintf("kube_deployment:%s", svc),
+					fmt.Sprintf("kube_namespace:%s", podNamespace),
+					"component:agent",
+					"kube_app_component:agent",
+					"kube_app_managed_by:helm",
+					"kube_app_part_of:datadog",
+					"kube_ownerref_kind:deployment",
+					"kube_service:service1",
+					"kube_service:service2",
+					"ns-team:containers",
+					"ns_env:dev",
+					"pod_phase:running",
+					"pod_template_version:1.0.0",
+					"team:container-integrations",
+					"tier:node",
+				}, standardTags...),
+				StandardTags: standardTags,
 			},
 		},
 		{
@@ -171,20 +169,18 @@ func TestHandleKubePod(t *testing.T) {
 					},
 				},
 			},
-			expected: []*TagInfo{
-				{
-					Entity:       podTaggerEntityID,
-					HighCardTags: []string{},
-					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
-						"oshift_deployment:gitlab-ce-1",
-					},
-					LowCardTags: append([]string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						"oshift_deployment_config:gitlab-ce",
-					}),
-					StandardTags: []string{},
+			expected: &TagInfo{
+				Entity:       podTaggerEntityID,
+				HighCardTags: []string{},
+				OrchestratorCardTags: []string{
+					fmt.Sprintf("pod_name:%s", podName),
+					"oshift_deployment:gitlab-ce-1",
 				},
+				LowCardTags: append([]string{
+					fmt.Sprintf("kube_namespace:%s", podNamespace),
+					"oshift_deployment_config:gitlab-ce",
+				}),
+				StandardTags: []string{},
 			},
 		},
 	}
@@ -200,7 +196,7 @@ func TestHandleKubePod(t *testing.T) {
 				Entity: &tt.pod,
 			})
 
-			assertTagInfoListEqual(t, tt.expected, actual)
+			assertTagInfoEqual(t, tt.expected, actual)
 		})
 	}
 }
@@ -214,7 +210,7 @@ func TestHandleECSTask(t *testing.T) {
 	tests := []struct {
 		name     string
 		task     workloadmeta.ECSTask
-		expected []*TagInfo
+		expected *TagInfo
 	}{
 		{
 			name: "basic ECS Fargate task",
@@ -225,16 +221,14 @@ func TestHandleECSTask(t *testing.T) {
 				},
 				LaunchType: workloadmeta.ECSLaunchTypeFargate,
 			},
-			expected: []*TagInfo{
-				{
-					Entity:       OrchestratorScopeEntityID,
-					HighCardTags: []string{},
-					OrchestratorCardTags: []string{
-						"task_arn:foobar",
-					},
-					LowCardTags:  []string{},
-					StandardTags: []string{},
+			expected: &TagInfo{
+				Entity:       OrchestratorScopeEntityID,
+				HighCardTags: []string{},
+				OrchestratorCardTags: []string{
+					"task_arn:foobar",
 				},
+				LowCardTags:  []string{},
+				StandardTags: []string{},
 			},
 		},
 	}
@@ -250,7 +244,7 @@ func TestHandleECSTask(t *testing.T) {
 				Entity: &tt.task,
 			})
 
-			assertTagInfoListEqual(t, tt.expected, actual)
+			assertTagInfoEqual(t, tt.expected, actual)
 		})
 	}
 }
@@ -358,7 +352,7 @@ func TestHandleContainer(t *testing.T) {
 		labelsAsTags map[string]string
 		envAsTags    map[string]string
 		container    workloadmeta.Container
-		expected     []*TagInfo
+		expected     *TagInfo
 	}{
 		{
 			name: "fully formed container",
@@ -375,22 +369,20 @@ func TestHandleContainer(t *testing.T) {
 				Runtime: workloadmeta.ContainerRuntimeDocker,
 				Image:   image,
 			},
-			expected: []*TagInfo{
-				{
-					Entity: taggerEntityID,
-					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
-					},
-					OrchestratorCardTags: []string{},
-					LowCardTags: append([]string{
-						fmt.Sprintf("docker_image:%s:%s", image.Name, image.Tag),
-						fmt.Sprintf("image_name:%s", image.Name),
-						fmt.Sprintf("image_tag:%s", image.Tag),
-						fmt.Sprintf("short_image:%s", image.ShortName),
-					}, standardTags...),
-					StandardTags: standardTags,
+			expected: &TagInfo{
+				Entity: taggerEntityID,
+				HighCardTags: []string{
+					fmt.Sprintf("container_name:%s", containerName),
+					fmt.Sprintf("container_id:%s", entityID.ID),
 				},
+				OrchestratorCardTags: []string{},
+				LowCardTags: append([]string{
+					fmt.Sprintf("docker_image:%s:%s", image.Name, image.Tag),
+					fmt.Sprintf("image_name:%s", image.Name),
+					fmt.Sprintf("image_tag:%s", image.Tag),
+					fmt.Sprintf("short_image:%s", image.ShortName),
+				}, standardTags...),
+				StandardTags: standardTags,
 			},
 		},
 		{
@@ -414,19 +406,17 @@ func TestHandleContainer(t *testing.T) {
 			envAsTags: map[string]string{
 				"team": "owner_team",
 			},
-			expected: []*TagInfo{
-				{
-					Entity: taggerEntityID,
-					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
-					},
-					OrchestratorCardTags: []string{},
-					LowCardTags: append([]string{
-						"owner_team:container-integrations",
-					}, standardTags...),
-					StandardTags: standardTags,
+			expected: &TagInfo{
+				Entity: taggerEntityID,
+				HighCardTags: []string{
+					fmt.Sprintf("container_name:%s", containerName),
+					fmt.Sprintf("container_id:%s", entityID.ID),
 				},
+				OrchestratorCardTags: []string{},
+				LowCardTags: append([]string{
+					"owner_team:container-integrations",
+				}, standardTags...),
+				StandardTags: standardTags,
 			},
 		},
 		{
@@ -448,20 +438,18 @@ func TestHandleContainer(t *testing.T) {
 			labelsAsTags: map[string]string{
 				"team": "owner_team",
 			},
-			expected: []*TagInfo{
-				{
-					Entity: taggerEntityID,
-					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
-						"app_name:datadog-agent",
-					},
-					OrchestratorCardTags: []string{},
-					LowCardTags: append([]string{
-						"owner_team:container-integrations",
-					}),
-					StandardTags: []string{},
+			expected: &TagInfo{
+				Entity: taggerEntityID,
+				HighCardTags: []string{
+					fmt.Sprintf("container_name:%s", containerName),
+					fmt.Sprintf("container_id:%s", entityID.ID),
+					"app_name:datadog-agent",
 				},
+				OrchestratorCardTags: []string{},
+				LowCardTags: append([]string{
+					"owner_team:container-integrations",
+				}),
+				StandardTags: []string{},
 			},
 		},
 		{
@@ -484,22 +472,20 @@ func TestHandleContainer(t *testing.T) {
 			envAsTags: map[string]string{
 				"*": "custom_env_prefix_%%env%%",
 			},
-			expected: []*TagInfo{
-				{
-					Entity: taggerEntityID,
-					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
-					},
-					OrchestratorCardTags: []string{},
-					LowCardTags: append([]string{
-						// Notice that the names include the custom prefixes
-						// added in labelsAsTags and envAsTags.
-						"custom_label_prefix_team:container-integrations",
-						"custom_env_prefix_some_env:some_env_val",
-					}),
-					StandardTags: []string{},
+			expected: &TagInfo{
+				Entity: taggerEntityID,
+				HighCardTags: []string{
+					fmt.Sprintf("container_name:%s", containerName),
+					fmt.Sprintf("container_id:%s", entityID.ID),
 				},
+				OrchestratorCardTags: []string{},
+				LowCardTags: append([]string{
+					// Notice that the names include the custom prefixes
+					// added in labelsAsTags and envAsTags.
+					"custom_label_prefix_team:container-integrations",
+					"custom_env_prefix_some_env:some_env_val",
+				}),
+				StandardTags: []string{},
 			},
 		},
 		{
@@ -514,27 +500,25 @@ func TestHandleContainer(t *testing.T) {
 				},
 				Image: image,
 			},
-			expected: []*TagInfo{
-				{
-					Entity: taggerEntityID,
-					HighCardTags: []string{
-						fmt.Sprintf("container_id:%s", entityID.ID),
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("display_container_name:%s_%s", podContainerName, podName),
-					},
-					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
-					},
-					LowCardTags: append([]string{
-						fmt.Sprintf("image_id:%s", podImage.ID),
-						fmt.Sprintf("image_name:%s", podImage.Name),
-						fmt.Sprintf("image_tag:%s", podImage.Tag),
-						fmt.Sprintf("kube_container_name:%s", podContainerName),
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						fmt.Sprintf("short_image:%s", podImage.ShortName),
-					}, standardTags...),
-					StandardTags: standardTags,
+			expected: &TagInfo{
+				Entity: taggerEntityID,
+				HighCardTags: []string{
+					fmt.Sprintf("container_id:%s", entityID.ID),
+					fmt.Sprintf("container_name:%s", containerName),
+					fmt.Sprintf("display_container_name:%s_%s", podContainerName, podName),
 				},
+				OrchestratorCardTags: []string{
+					fmt.Sprintf("pod_name:%s", podName),
+				},
+				LowCardTags: append([]string{
+					fmt.Sprintf("image_id:%s", podImage.ID),
+					fmt.Sprintf("image_name:%s", podImage.Name),
+					fmt.Sprintf("image_tag:%s", podImage.Tag),
+					fmt.Sprintf("kube_container_name:%s", podContainerName),
+					fmt.Sprintf("kube_namespace:%s", podNamespace),
+					fmt.Sprintf("short_image:%s", podImage.ShortName),
+				}, standardTags...),
+				StandardTags: standardTags,
 			},
 		},
 		{
@@ -548,28 +532,26 @@ func TestHandleContainer(t *testing.T) {
 					},
 				},
 			},
-			expected: []*TagInfo{
-				{
-					Entity: taggerEntityID,
-					HighCardTags: []string{
-						fmt.Sprintf("container_id:%s", entityID.ID),
-						fmt.Sprintf("container_name:%s", containerName),
-					},
-					OrchestratorCardTags: []string{
-						"task_arn:foobar",
-					},
-					LowCardTags: append([]string{
-						"cluster_name:ecs-cluster",
-						"ecs_cluster_name:ecs-cluster",
-						"ecs_container_name:agent",
-						"instance_type:g4dn.xlarge",
-						"owner_team:container-integrations",
-						"task_family:datadog-agent",
-						"task_name:datadog-agent",
-						"task_version:1",
-					}),
-					StandardTags: []string{},
+			expected: &TagInfo{
+				Entity: taggerEntityID,
+				HighCardTags: []string{
+					fmt.Sprintf("container_id:%s", entityID.ID),
+					fmt.Sprintf("container_name:%s", containerName),
 				},
+				OrchestratorCardTags: []string{
+					"task_arn:foobar",
+				},
+				LowCardTags: append([]string{
+					"cluster_name:ecs-cluster",
+					"ecs_cluster_name:ecs-cluster",
+					"ecs_container_name:agent",
+					"instance_type:g4dn.xlarge",
+					"owner_team:container-integrations",
+					"task_family:datadog-agent",
+					"task_name:datadog-agent",
+					"task_version:1",
+				}),
+				StandardTags: []string{},
 			},
 		},
 		{
@@ -587,23 +569,21 @@ func TestHandleContainer(t *testing.T) {
 					"NOMAD_DC":         "test-dc",
 				},
 			},
-			expected: []*TagInfo{
-				{
-					Entity: taggerEntityID,
-					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
-					},
-					OrchestratorCardTags: []string{},
-					LowCardTags: append([]string{
-						"nomad_task:test-task",
-						"nomad_job:test-job",
-						"nomad_group:test-group",
-						"nomad_namespace:test-namespace",
-						"nomad_dc:test-dc",
-					}),
-					StandardTags: []string{},
+			expected: &TagInfo{
+				Entity: taggerEntityID,
+				HighCardTags: []string{
+					fmt.Sprintf("container_name:%s", containerName),
+					fmt.Sprintf("container_id:%s", entityID.ID),
 				},
+				OrchestratorCardTags: []string{},
+				LowCardTags: append([]string{
+					"nomad_task:test-task",
+					"nomad_job:test-job",
+					"nomad_group:test-group",
+					"nomad_namespace:test-namespace",
+					"nomad_dc:test-dc",
+				}),
+				StandardTags: []string{},
 			},
 		},
 		{
@@ -620,23 +600,21 @@ func TestHandleContainer(t *testing.T) {
 					"MESOS_TASK_ID":     "system_dd-agent.dcc75b42-4b87-11e7-9a62-70b3d5800001",
 				},
 			},
-			expected: []*TagInfo{
-				{
-					Entity: taggerEntityID,
-					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
-					},
-					OrchestratorCardTags: []string{
-						"mesos_task:system_dd-agent.dcc75b42-4b87-11e7-9a62-70b3d5800001",
-					},
-					LowCardTags: append([]string{
-						"chronos_job:app1_process-orders",
-						"chronos_job_owner:qa",
-						"marathon_app:/system/dd-agent",
-					}),
-					StandardTags: []string{},
+			expected: &TagInfo{
+				Entity: taggerEntityID,
+				HighCardTags: []string{
+					fmt.Sprintf("container_name:%s", containerName),
+					fmt.Sprintf("container_id:%s", entityID.ID),
 				},
+				OrchestratorCardTags: []string{
+					"mesos_task:system_dd-agent.dcc75b42-4b87-11e7-9a62-70b3d5800001",
+				},
+				LowCardTags: append([]string{
+					"chronos_job:app1_process-orders",
+					"chronos_job_owner:qa",
+					"marathon_app:/system/dd-agent",
+				}),
+				StandardTags: []string{},
 			},
 		},
 		{
@@ -663,21 +641,19 @@ func TestHandleContainer(t *testing.T) {
 					},
 				},
 			},
-			expected: []*TagInfo{
-				{
-					Entity: taggerEntityID,
-					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
-						"rancher_container:testAD-redis-1",
-					},
-					OrchestratorCardTags: []string{},
-					LowCardTags: append([]string{
-						"rancher_service:testAD/redis",
-						"rancher_stack:testAD",
-					}),
-					StandardTags: []string{},
+			expected: &TagInfo{
+				Entity: taggerEntityID,
+				HighCardTags: []string{
+					fmt.Sprintf("container_name:%s", containerName),
+					fmt.Sprintf("container_id:%s", entityID.ID),
+					"rancher_container:testAD-redis-1",
 				},
+				OrchestratorCardTags: []string{},
+				LowCardTags: append([]string{
+					"rancher_service:testAD/redis",
+					"rancher_stack:testAD",
+				}),
+				StandardTags: []string{},
 			},
 		},
 		{
@@ -697,20 +673,18 @@ func TestHandleContainer(t *testing.T) {
 					},
 				},
 			},
-			expected: []*TagInfo{
-				{
-					Entity: taggerEntityID,
-					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
-					},
-					OrchestratorCardTags: []string{},
-					LowCardTags: append([]string{
-						"swarm_namespace:default",
-						"swarm_service:helloworld",
-					}),
-					StandardTags: []string{},
+			expected: &TagInfo{
+				Entity: taggerEntityID,
+				HighCardTags: []string{
+					fmt.Sprintf("container_name:%s", containerName),
+					fmt.Sprintf("container_id:%s", entityID.ID),
 				},
+				OrchestratorCardTags: []string{},
+				LowCardTags: append([]string{
+					"swarm_namespace:default",
+					"swarm_service:helloworld",
+				}),
+				StandardTags: []string{},
 			},
 		},
 		{
@@ -724,17 +698,15 @@ func TestHandleContainer(t *testing.T) {
 					},
 				},
 			},
-			expected: []*TagInfo{
-				{
-					Entity: taggerEntityID,
-					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
-					},
-					OrchestratorCardTags: []string{},
-					LowCardTags:          []string{"git.commit.sha:758691a28aa920070651d360814c559bc26af907"},
-					StandardTags:         []string{},
+			expected: &TagInfo{
+				Entity: taggerEntityID,
+				HighCardTags: []string{
+					fmt.Sprintf("container_name:%s", containerName),
+					fmt.Sprintf("container_id:%s", entityID.ID),
 				},
+				OrchestratorCardTags: []string{},
+				LowCardTags:          []string{"git.commit.sha:758691a28aa920070651d360814c559bc26af907"},
+				StandardTags:         []string{},
 			},
 		},
 	}
@@ -752,7 +724,7 @@ func TestHandleContainer(t *testing.T) {
 				Entity: &tt.container,
 			})
 
-			assertTagInfoListEqual(t, tt.expected, actual)
+			assertTagInfoEqual(t, tt.expected, actual)
 		})
 	}
 }
@@ -786,11 +758,9 @@ func TestHandleDelete(t *testing.T) {
 		Entity: pod,
 	})
 
-	expected := []*TagInfo{
-		{
-			Entity:       podTaggerEntityID,
-			DeleteEntity: true,
-		},
+	expected := &TagInfo{
+		Entity:       podTaggerEntityID,
+		DeleteEntity: true,
 	}
 
 	actual := collector.handleDelete(workloadmeta.Event{
@@ -798,7 +768,7 @@ func TestHandleDelete(t *testing.T) {
 		Entity: pod,
 	})
 
-	assertTagInfoListEqual(t, expected, actual)
+	assertTagInfoEqual(t, expected, actual)
 }
 
 func TestHandleContainerStaticTags(t *testing.T) {
@@ -815,16 +785,14 @@ func TestHandleContainerStaticTags(t *testing.T) {
 		},
 	}
 
-	expected := []*TagInfo{
-		{
-			Entity: fmt.Sprintf("container_id://%s", container.ID),
-			HighCardTags: []string{
-				fmt.Sprintf("container_id:%s", container.ID),
-			},
-			OrchestratorCardTags: []string{},
-			LowCardTags:          []string{"eks_fargate_node:foobar"},
-			StandardTags:         []string{},
+	expected := &TagInfo{
+		Entity: fmt.Sprintf("container_id://%s", container.ID),
+		HighCardTags: []string{
+			fmt.Sprintf("container_id:%s", container.ID),
 		},
+		OrchestratorCardTags: []string{},
+		LowCardTags:          []string{"eks_fargate_node:foobar"},
+		StandardTags:         []string{},
 	}
 
 	actual := collector.handleContainer(workloadmeta.Event{
@@ -832,7 +800,7 @@ func TestHandleContainerStaticTags(t *testing.T) {
 		Entity: &container,
 	})
 
-	assertTagInfoListEqual(t, expected, actual)
+	assertTagInfoEqual(t, expected, actual)
 }
 
 func TestParseJSONValue(t *testing.T) {
@@ -959,12 +927,4 @@ func assertTagInfoEqual(t *testing.T, expected *TagInfo, item *TagInfo) bool {
 	sort.Strings(item.StandardTags)
 
 	return assert.Equal(t, expected, item)
-}
-
-func assertTagInfoListEqual(t *testing.T, expectedUpdates []*TagInfo, updates []*TagInfo) {
-	t.Helper()
-	assert.Equal(t, len(expectedUpdates), len(updates))
-	for i := 0; i < len(expectedUpdates); i++ {
-		assertTagInfoEqual(t, expectedUpdates[i], updates[i])
-	}
 }
